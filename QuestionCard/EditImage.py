@@ -1,39 +1,40 @@
 from PIL import Image
 
 
-def paste_png_on_jpeg(target_path, source_path, result_path, position=(0, 0), source_size=None):
+def resize_and_paste_image(background_path, foreground_path, position=(1510, 510), size=(780, 370)):
     """
-    将PNG格式的图片粘贴到JPEG格式的图片上。
+    将一张图片缩放到指定大小，然后放置到另一张图片的指定位置上并保存合成后的新图。
 
-    :param target_path: 目标JPEG图片的路径
-    :param source_path: 源PNG图片的路径
-    :param result_path: 结果图片的保存路径
-    :param position: 源图片在目标图片上的粘贴位置
-    :param source_size: 源图片的新尺寸，如果为None则不改变尺寸
+    :param background_path: 背景图片的路径
+    :param foreground_path: 要放置的图片（前景）的路径
+    :param position: 前景图片放置的位置，格式为 (x, y)
+    :param size: 前景图片缩放的目标大小，格式为 (width, height)
+    :param output_path: 合成后的图片保存的路径
     """
-    # 打开JPEG图片和PNG图片
-    target_image = Image.open(target_path)
-    source_image = Image.open(source_path)
+    # 打开背景和前景图片
+    background = Image.open(background_path)
+    foreground = Image.open(foreground_path)
 
-    # 如果提供了source_size，则调整源图片大小
-    if source_size:
-        source_image = source_image.resize(source_size)
+    # 缩放前景图片到指定大小
+    resized_foreground = foreground.resize(size, Image.LANCZOS)
 
-    # 将JPEG图片转换为RGBA格式以支持透明度
-    target_image = target_image.convert('RGBA')
+    # 如果前景图片没有透明度通道，则创建一个白色背景的透明度掩码
+    if resized_foreground.mode != 'RGBA':
+        alpha_channel = Image.new('L', resized_foreground.size, 255)  # 创建白色背景的掩码
+        resized_foreground.putalpha(alpha_channel)
 
-    # 将PNG图片粘贴到JPEG图片上
-    target_image.paste(source_image, position, source_image)
+    # 将缩放后的前景图片放置到背景图片上
+    background.paste(resized_foreground, position, resized_foreground)
 
-    # 将结果图片保存为PNG格式（因为JPEG不支持透明度）
-    target_image.save(result_path, 'PNG')
+    # 保存合成后的新图片
+    background.save(background_path)
 
 
-# 使用示例
-paste_png_on_jpeg(
-    target_path=r'C:\Users\Administrator\Downloads\document\测试题卡\高中语文20240812提卡\01.jpg',  # 目标JPEG图片路径
-    source_path=r'./my_barcode.png',  # 源PNG图片路径
-    result_path=r'C:\Users\Administrator\Downloads\document\测试题卡\高中语文20240812提卡\01_image.png',  # 结果图片保存路径
-    position=(390, 140),  # 粘贴位置
-    source_size=(180, 90)  # 源图片新尺寸，如果不需要改变大小则传None
-)
+
+if __name__ == '__main__':
+    # 示例代码使用
+    background_path = r'./cardinfo/高中历史20240820170434/19.jpg'  # 背景图片的路径
+    foreground_path = './barcode/学生10.png'  # 前景图片的路径
+    position = (1510, 510)  # 前景图片放置的位置（x, y）
+    size = (780, 370)  # 前景图片缩放的目标大小
+    resize_and_paste_image(background_path, foreground_path, position, size)
