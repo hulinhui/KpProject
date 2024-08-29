@@ -3,20 +3,23 @@ import shutil
 from pdf2image import convert_from_path
 
 
-def move_file_to_directory(file_name, destination_directory):
+def move_file_to_directory(source_path, destination_directory):
     """
-    移动文件到指定的目录。
-
-    :param file_name: str, 源文件的文件名。
+    移动文件及文件夹到指定的目录。
+    :param source_path: str, 源文件的路径。
     :param destination_directory: str, 目标目录的路径。
     """
-    source_path = os.path.join(r'C:\Users\Administrator\Downloads', file_name)
     # 确保目标目录存在，如果不存在则创建
     os.makedirs(destination_directory, exist_ok=True)
-    dir_name = os.path.basename(destination_directory)
-    # 移动文件
-    shutil.move(source_path, destination_directory)
-    print(f"题卡-{file_name}已移动到文件夹{dir_name}")
+    source_name = os.path.basename(source_path)
+    dest_dir_name = os.path.basename(destination_directory)
+    # 移动文件及文件夹
+    try:
+        shutil.move(source_path, destination_directory)
+    except FileNotFoundError:
+        print(f"错误：题卡文件-{source_name}不存在！")
+    else:
+        print(f"题卡文件-{source_name}已移动到指定文件夹-{dest_dir_name}")
 
 
 def get_file_path(folder_name, root=None):
@@ -97,23 +100,24 @@ def copy_images_in_sequence(number, img_path_01, img_path_02):
     return pic_num
 
 
-def generate_card_pic(count, card_folder, file_name=None):
+def generate_card_pic(count, card_folder, file_name):
     """
        未传文件名时，默认取folder文件夹中最新的pdf文件，传文件名取文件名文件
 
        参数:
-       folder : 题卡文件夹。
-       count (int): 复制图片的数量。
-       file_name (str): pdf文件名。
+       :param count: 复制图片的数量。
+       :param card_folder : 题卡文件夹。
+       :param file_name: pdf文件名。
+       :return tuple  pdf文件路径及题卡图片文件夹
        """
-    if file_name is None:
-        file_name = get_newest_pdf(card_folder)
+    # if file_name is None:
+    #     file_name = get_newest_pdf(card_folder)
     pdf_path = get_file_path(file_name, card_folder)
     pic_path_list = convert_pdf_to_jpg(pdf_path)
     print(f'题卡-{file_name}：转图片生成{len(pic_path_list)}张图片')
     pic_count = copy_images_in_sequence(count, *pic_path_list)
     print(f'题卡-{file_name}:复制图片共{pic_count}张图片')
-    return os.path.splitext(pdf_path)[0]
+    return pdf_path, os.path.splitext(pdf_path)[0]
 
 
 if __name__ == '__main__':

@@ -30,7 +30,6 @@ def resize_and_paste_image(background_path, foreground_path, position=(1510, 510
     background.save(background_path)
 
 
-
 if __name__ == '__main__':
     # 示例代码使用
     background_path = r'./cardinfo/高中历史20240820170434/19.jpg'  # 背景图片的路径
