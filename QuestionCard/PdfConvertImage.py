@@ -29,13 +29,13 @@ def get_file_path(folder_name, root=None):
         return os.path.join(root, folder_name)
 
 
-def get_file_count(folder_path):
+def get_file_list(folder_path):
     file_list = []
     for name in os.listdir(folder_path):
         file_path = get_file_path(name, folder_path)
         if os.path.isfile(file_path):
             file_list.append(name)
-    return len(file_list)
+    return file_list
 
 
 def get_newest_pdf(directory):
@@ -96,7 +96,7 @@ def copy_images_in_sequence(number, img_path_01, img_path_02):
         shutil.copy(img_path_01, os.path.join(output_folder, f'{i:02d}.jpg'))
         # 复制02图片，使用偶数索引
         shutil.copy(img_path_02, os.path.join(output_folder, f'{i + 1:02d}.jpg'))
-    pic_num = get_file_count(output_folder)
+    pic_num = len(get_file_list(output_folder))
     return pic_num
 
 

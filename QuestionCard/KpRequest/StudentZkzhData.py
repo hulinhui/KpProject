@@ -7,14 +7,22 @@ from QuestionCard.KpRequest.NotifyMessage import read_config
 
 class StudentZkzhData:
     def __init__(self):
+        self.host = None
         self.kp_data = read_config('KP')
-        self.headers = get_format_headers(headers_kp, 'Authorization', self.kp_data.get('kp_token'))
+        self.headers = self.init_headers()
         self.logger = HandleLog()
+
+    def init_headers(self):
+        host = self.kp_data['test_host'] if self.kp_data['env_flag'] else self.kp_data['prod_host']
+        header_item = {'Authorization': 'Bearer ' + self.kp_data.get('token'), 'Host': host}
+        headers = get_format_headers(headers_kp, **header_item)
+        self.host = f'https://{host}'
+        return headers
 
     def get_response(self, url, method='GET', data=None):
         try:
             data = json.dumps(data) if data else data
-            response = requests.request(method=method.upper(), url=url, headers=self.headers, data=data)
+            response = requests.request(method=method.upper(), url=self.host + url, headers=self.headers, data=data)
             response.raise_for_status()
             response.encoding = 'utf-8'
             return response
@@ -34,7 +42,7 @@ class StudentZkzhData:
     def get_student_data(self):
         student_data = {"classId": "237172308521030611919", "schoolAreaId": "237172283877937703507",
                         "schoolId": "237172283877907003491"}
-        response = self.get_response(self.kp_data['kp_stu_url'], method='POST', data=student_data)
+        response = self.get_response(self.kp_data['stu_url'], method='POST', data=student_data)
         result, data = self.check_response(response)
         if result:
             result_data = data.get("data").get("records")
@@ -47,5 +55,5 @@ class StudentZkzhData:
 
 if __name__ == '__main__':
     student = StudentZkzhData()
-    data = student.get_student_data()
-    print(data)
+    stu_data = student.get_student_data()
+    print(stu_data)
