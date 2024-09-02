@@ -3,26 +3,26 @@ import requests
 from QuestionCard.KpRequest.Handle_Logger import HandleLog
 from QuestionCard.KpRequest.FormatHeaders import get_format_headers, headers_kp
 from QuestionCard.KpRequest.NotifyMessage import read_config
+from urllib.parse import urlparse
 
 
 class StudentZkzhData:
     def __init__(self):
-        self.host = None
+        self.domain = None
         self.kp_data = read_config('KP')
         self.headers = self.init_headers()
         self.logger = HandleLog()
 
     def init_headers(self):
-        host = self.kp_data['test_host'] if self.kp_data['env_flag'] else self.kp_data['prod_host']
-        header_item = {'Authorization': 'Bearer ' + self.kp_data.get('token'), 'Host': host}
+        self.domain = self.kp_data['test_domain'] if self.kp_data['env_flag'] else self.kp_data['prod_domain']
+        header_item = {'Authorization': 'Bearer ' + self.kp_data.get('token'), 'Host': urlparse(self.domain).hostname}
         headers = get_format_headers(headers_kp, **header_item)
-        self.host = f'https://{host}'
         return headers
 
     def get_response(self, url, method='GET', data=None):
         try:
             data = json.dumps(data) if data else data
-            response = requests.request(method=method.upper(), url=self.host + url, headers=self.headers, data=data)
+            response = requests.request(method=method.upper(), url=self.domain + url, headers=self.headers, data=data)
             response.raise_for_status()
             response.encoding = 'utf-8'
             return response

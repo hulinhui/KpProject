@@ -1,7 +1,7 @@
 from PIL import Image
 
 
-def resize_and_paste_image(background_path, foreground_path, position=(1510, 510), size=(780, 370)):
+def resize_and_paste_image(background_path, foreground_path, position, size):
     """
     将一张图片缩放到指定大小，然后放置到另一张图片的指定位置上并保存合成后的新图。
 
@@ -32,8 +32,9 @@ def resize_and_paste_image(background_path, foreground_path, position=(1510, 510
 
 if __name__ == '__main__':
     # 示例代码使用
-    background_path = r'./cardinfo/高中历史20240820170434/19.jpg'  # 背景图片的路径
-    foreground_path = './barcode/学生10.png'  # 前景图片的路径
-    position = (1510, 510)  # 前景图片放置的位置（x, y）
-    size = (780, 370)  # 前景图片缩放的目标大小
-    resize_and_paste_image(background_path, foreground_path, position, size)
+    b_path = r'./cardinfo/高中历史20240820170434/19.jpg'  # 背景图片的路径
+    f_path = './barcode/学生10.png'  # 前景图片的路径
+    f_pos = (1510, 510)  # 前景图片放置的位置（x, y）
+    f_size = (780, 370)  # 前景图片缩放的目标大小
+    print(type(f_pos),type(f_size))
+    resize_and_paste_image(b_path, f_path, f_pos, f_size)
