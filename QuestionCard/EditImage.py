@@ -36,5 +36,4 @@ if __name__ == '__main__':
     f_path = './barcode/学生10.png'  # 前景图片的路径
     f_pos = (1510, 510)  # 前景图片放置的位置（x, y）
     f_size = (780, 370)  # 前景图片缩放的目标大小
-    print(type(f_pos),type(f_size))
     resize_and_paste_image(b_path, f_path, f_pos, f_size)

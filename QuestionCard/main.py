@@ -69,9 +69,9 @@ def main():
 
 
 if __name__ == '__main__':
-    file_name = '语文手阅0830.pdf'
+    file_name = '语文手阅0830.pdf'   # 移动文件到cardinfo目录时需要传文件名(带后缀名)
     # 实例化一个学生类
     stu_class = StudentZkzhData()
     # 获取学生类的kp数据
     kp_info = stu_class.kp_data
-    main()  # 移动文件到cardinfo目录时需要传文件名(带后缀名)
+    main()
