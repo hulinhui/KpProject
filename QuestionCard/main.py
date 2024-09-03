@@ -1,7 +1,7 @@
 from QuestionCard.KpRequest.StudentZkzhData import StudentZkzhData
 from QuestionCard.GenerateBarcode import generate_barcode
 from QuestionCard.PdfConvertImage import generate_card_pic, get_file_list, get_file_path, move_file_to_directory
-from QuestionCard.EditImage import resize_and_paste_image
+from QuestionCard.EditImage import resize_and_paste_image, find_rectangles_in_region
 
 
 def get_student_count(folder_path):
@@ -36,12 +36,13 @@ def get_pdf_pic(barname_list, c_name, name):
 
 
 def create_image_info(stuname_list, b_folder, c_folder):
+    position, size, point = (kp_info['ie_pos'], kp_info['ie_size'], kp_info['ie_pot']) if kp_info['exam_flag'] else (
+        kp_info['je_pos'], kp_info['je_size'], kp_info['je_pot'])
     for i, stuname in enumerate(stuname_list, 1):
         c_file = get_file_path(f'{2 * i - 1:02d}.jpg', c_folder)
         b_file = get_file_path(stuname, b_folder)
-        position, size = (kp_info['ie_pos'], kp_info['ie_size']) if kp_info['exam_flag'] else (
-            kp_info['je_pos'], kp_info['je_size'])
         resize_and_paste_image(c_file, b_file, position=eval(position), size=eval(size))  # 联考与校内考题卡条形码位置不一致（需要重新设置）
+        find_rectangles_in_region(c_file, eval(point))
     print('题卡数据制造完成！')
 
 
@@ -69,7 +70,7 @@ def main():
 
 
 if __name__ == '__main__':
-    file_name = '语文手阅0830.pdf'   # 移动文件到cardinfo目录时需要传文件名(带后缀名)
+    file_name = '语文手阅0830.pdf'  # 移动文件到cardinfo目录时需要传文件名(带后缀名)
     # 实例化一个学生类
     stu_class = StudentZkzhData()
     # 获取学生类的kp数据

@@ -121,4 +121,4 @@ def generate_card_pic(count, card_folder, file_name):
 
 
 if __name__ == '__main__':
-    generate_card_pic('cardinfo', 10, file_name='高中语文20240812提卡.pdf')
+    generate_card_pic(10, 'cardinfo', file_name='语文手阅0830.pdf')
