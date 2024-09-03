@@ -11,7 +11,7 @@ def get_student_count(folder_path):
     :return: barname_list  学生条形码名称列表数据
     """
     if not get_file_list(folder_path):
-        student_list = stu_class.get_student_data()
+        student_list = stu_class.run()
         if not student_list:
             return []
         for student in student_list:

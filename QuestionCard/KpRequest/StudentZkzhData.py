@@ -102,14 +102,13 @@ class StudentZkzhData:
             self.logger.info('响应数据有误')
 
     def get_class(self, aid, eid, pid):
-        print(aid, eid, pid)
         class_url = self.kp_data['class_url']
         class_data = {"type": "1", "schoolAreaId": aid, "gradeId": eid, "stepId": pid}
         response = self.get_response(class_url, method='POST', data=class_data)
         result, data = self.check_response(response)
         if result:
             class_list = [class_item['classId'] for class_item in data['data'] if
-                        class_item['className'] == self.kp_data['class_name']]
+                          class_item['className'] == self.kp_data['class_name']]
             return class_list[0]
         else:
             self.logger.info('响应数据有误')
