@@ -45,7 +45,7 @@ def resize_and_paste_image(background_path, foreground_path, position, size):
     background.save(background_path)
 
 
-def find_rectangles_in_region(image_path, point_tuple, option_size=(68, 38), option_range=2, option_count=4):
+def find_rectangles_in_region(image_path, point_tuple, option_size=(68, 38), option_range=3, option_count=4):
     """
     指定图片的某个区域中寻找所有矩形，并打印它们的坐标。
 
@@ -102,5 +102,5 @@ if __name__ == '__main__':
     # f_pos = (1510, 510)  # 前景图片放置的位置（x, y）
     # f_size = (780, 370)  # 前景图片缩放的目标大小
     # resize_and_paste_image(b_path, f_path, f_pos, f_size)
-    find_rectangles_in_region(r'D:\PyCharm 2024.1.4\KpProject\QuestionCard\cardinfo\语文手阅0830\03.jpg',
-                              (178, 1100, 2123, 318), (68, 38))
+    find_rectangles_in_region(r'D:\PyCharm 2024.1.4\KpProject\QuestionCard\cardinfo\高中数学联考手阅\07.jpg',
+                              (180, 1234, 2123, 362))
