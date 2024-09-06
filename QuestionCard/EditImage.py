@@ -1,6 +1,5 @@
 import random
 import numpy as np
-from PIL import Image
 import cv2
 
 
@@ -33,7 +32,7 @@ def get_point_data(data_list, number=None):
     return pos_data
 
 
-def resize_and_paste_image(background_path, foreground_path, position):
+def paste_image(background_path, foreground_path, position):
     """
     将一张图片缩放到指定大小，然后放置到另一张图片的指定位置上并保存合成后的新图。
 
@@ -41,24 +40,18 @@ def resize_and_paste_image(background_path, foreground_path, position):
     :param foreground_path: 要放置的图片（前景）的路径
     :param position: 前景图片放置的位置及前景图的尺寸，格式为 (x, y,w,h)
     """
-    # 打开背景和前景图片
-    background = Image.open(background_path)
-    foreground = Image.open(foreground_path)
+
+    # 读取前景图片和背景图片
+    foreground = cv2.imdecode(np.fromfile(foreground_path, dtype=np.uint8), -1)
+    background = cv2.imdecode(np.fromfile(background_path, dtype=np.uint8), -1)
     # 获取定位及尺寸
     pos, size = position[:2], position[2:]
-    # 缩放前景图片到指定大小
-    resized_foreground = foreground.resize(size, Image.LANCZOS)
-
-    # 如果前景图片没有透明度通道，则创建一个白色背景的透明度掩码
-    if resized_foreground.mode != 'RGBA':
-        alpha_channel = Image.new('L', resized_foreground.size, 255)  # 创建白色背景的掩码
-        resized_foreground.putalpha(alpha_channel)
-
-    # 将缩放后的前景图片放置到背景图片上
-    background.paste(resized_foreground, pos, resized_foreground)
-
-    # 保存合成后的新图片
-    background.save(background_path)
+    # 调整前景图片的尺寸
+    resized_foreground = cv2.resize(foreground, size)
+    # 粘贴前景图片到背景图片上
+    background[pos[1]:pos[1] + size[1], pos[0]:pos[0] + size[0]] = resized_foreground
+    # 保存图片
+    cv2.imencode('.jpg', background)[1].tofile(background_path)
 
 
 def find_rectangles_in_region(image_path, point_tuple, option_size=(68, 38), option_range=3, option_count=4,
@@ -112,7 +105,7 @@ def find_rectangles_in_region(image_path, point_tuple, option_size=(68, 38), opt
     # 获取学生准考账号列表数据
     barcode_list = [int(_) for _ in stu_barcode] if stu_barcode else [None] * len(coord_split_data)  # 列表的个数就是题或证号的个数
 
-    # 答题
+    # 答题或填涂准考证
     # 循环每道题，进行填充答案
     for coord_list, number in zip(coord_split_data, barcode_list):
         # 随机答题
@@ -127,10 +120,9 @@ def find_rectangles_in_region(image_path, point_tuple, option_size=(68, 38), opt
 
 if __name__ == '__main__':
     # 示例代码使用
-    # b_path = r'./cardinfo/高中历史20240820170434/19.jpg'  # 背景图片的路径
-    # f_path = './barcode/学生10.png'  # 前景图片的路径
-    # f_pos = (1510, 510)  # 前景图片放置的位置（x, y）
-    # f_size = (780, 370)  # 前景图片缩放的目标大小
-    # resize_and_paste_image(b_path, f_path, f_pos, f_size)
-    find_rectangles_in_region(r'D:\PyCharm 2024.1.4\KpProject\QuestionCard\cardinfo\联考题卡\01.jpg',
-                              (180, 1353, 2123, 362))
+    b_path = r'D:\PyCharm 2024.1.4\KpProject\QuestionCard\cardinfo\高中语文联考0822\01.jpg'  # 背景图片的路径
+    f_path = r'D:\PyCharm 2024.1.4\KpProject\QuestionCard\barcode\42000001.png'  # 前景图片的路径
+    f_pos = (1570, 600, 700, 350)  # 前景图片放置的位置（x, y,w,h）
+    paste_image(b_path, f_path, f_pos)
+    # find_rectangles_in_region(r'D:\PyCharm 2024.1.4\KpProject\QuestionCard\cardinfo\联考题卡\01.jpg',
+    #                           (180, 1353, 2123, 362))

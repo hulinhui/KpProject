@@ -140,4 +140,4 @@ def generate_card_pic(count, card_folder, file_name):
 
 
 if __name__ == '__main__':
-    generate_card_pic(1, 'cardinfo', file_name='联考题卡.pdf')
+    generate_card_pic(1, 'cardinfo', file_name='高中语文联考0822.pdf')

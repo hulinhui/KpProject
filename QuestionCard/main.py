@@ -1,7 +1,7 @@
 from QuestionCard.KpRequest.StudentZkzhData import StudentZkzhData
 from QuestionCard.GenerateBarcode import generate_barcode
 from QuestionCard.PdfConvertImage import generate_card_pic, get_file_list, get_file_path, move_file_to_directory
-from QuestionCard.EditImage import resize_and_paste_image, find_rectangles_in_region
+from QuestionCard.EditImage import paste_image, find_rectangles_in_region
 
 
 def get_point_info():
@@ -65,7 +65,7 @@ def create_image_info(stuname_list, b_folder, c_folder):
             # 获取条形码图片完整路径,准考证号条形码方式使用
             b_file = get_file_path(stuname, b_folder)
             # 准考证号条形码粘贴操作
-            resize_and_paste_image(c_file, b_file, position=eval(zk_position))
+            paste_image(c_file, b_file, position=eval(zk_position))
         else:
             # 获取学生准考证号,准考证号填涂使用
             stu_barcode = stuname.split('.')[0]
@@ -100,12 +100,12 @@ def main():
     create_image_info(barname_list, barcode_folder, card_tuple[1])
 
     # 移动题卡及题卡图片文件夹到指定文件夹[判断测试环境还是正式环境]
-    final_path = kp_info['test_path'] if eval(kp_info['env_flag']) else kp_info['prod_path']
-    [move_file_to_directory(soure_path, final_path) for soure_path in card_tuple]
+    # final_path = kp_info['test_path'] if eval(kp_info['env_flag']) else kp_info['prod_path']
+    # [move_file_to_directory(soure_path, final_path) for soure_path in card_tuple]
 
 
 if __name__ == '__main__':
-    file_name = '高中数学联考手阅.pdf'  # 移动文件到cardinfo目录时需要传文件名(带后缀名)
+    file_name = '高中语文联考0822.pdf'  # 移动文件到cardinfo目录时需要传文件名(带后缀名)
     # 实例化一个学生类
     stu_class = StudentZkzhData()
     # 获取学生类的kp数据
