@@ -4,6 +4,23 @@ from QuestionCard.PdfConvertImage import generate_card_pic, get_file_list, get_f
 from QuestionCard.EditImage import resize_and_paste_image, find_rectangles_in_region
 
 
+def get_point_info():
+    """
+    (1,1):    校内考+条形码：    条形码定位+条形码选择题定位+准考证形式
+    (1,0):    校内考+准考证填涂：  准考证定位+准考证选择题定位+准考证形式
+    (0,1):    联考+条形码：       联考条形码定位+联考条形码选择题定位+准考证形式
+    (0,0):    联考+准考证填涂：   联考准考证定位+联考准考证选择题定位+准考证形式
+    :return: 根据exam_flag和number_from交互场景，返回对应场景的定位点元祖信息
+    """
+    point_item = {
+        (1, 1): (kp_info['ie_pos'], kp_info['ie_xz_tpos'], int(kp_info['number_from'])),
+        (1, 0): (kp_info['ie_zh_pos'], kp_info['ie_xz_zpos'], int(kp_info['number_from'])),
+        (0, 1): (kp_info['je_pos'], kp_info['je_xz_tpos'], int(kp_info['number_from'])),
+        (0, 0): (kp_info['je_zh_pos'], kp_info['je_xz_zpos'], int(kp_info['number_from']))
+    }
+    return point_item.get((int(kp_info['exam_flag']), int(kp_info['number_from'])), "无效的输入")
+
+
 def get_student_count(folder_path):
     """
     根据barcode文件夹中的学生条形码图片个数获取学生人数，即图片人数=学生人数
@@ -15,7 +32,7 @@ def get_student_count(folder_path):
         if not student_list:
             return []
         for student in student_list:
-            generate_barcode(*student)
+            generate_barcode(student)
     barname_list = get_file_list(folder_path)
     return barname_list
 
@@ -31,18 +48,36 @@ def get_pdf_pic(barname_list, c_name, name):
         return None
     # 存在文件时，进行生成题卡图片操作,返回元祖包含题卡文件夹路径及pdf文件路径
     barcode_count = len(barname_list)
+    # pdf转图片并复制图片数量（条形码数量），返回图片pdf文件路径及图片文件夹名称
     card_tuple = generate_card_pic(barcode_count, card_folder, file_name=name)
     return card_tuple
 
 
 def create_image_info(stuname_list, b_folder, c_folder):
-    position, size, point = (kp_info['ie_pos'], kp_info['ie_size'], kp_info['ie_pot']) \
-        if eval(kp_info['exam_flag']) else (kp_info['je_pos'], kp_info['je_size'], kp_info['je_pot'])
+    # 获取准考证号定位、选择题定位、准考证号的形式
+    zk_position, xz_position, form = get_point_info()
+    # 遍历学生准考证号文件名
     for i, stuname in enumerate(stuname_list, 1):
+        # 获取题卡奇数图片,填涂信息都在奇数页
         c_file = get_file_path(f'{2 * i - 1:02d}.jpg', c_folder)
-        b_file = get_file_path(stuname, b_folder)
-        resize_and_paste_image(c_file, b_file, position=eval(position), size=eval(size))  # 联考与校内考题卡条形码位置不一致（需要重新设置）
-        find_rectangles_in_region(c_file, eval(point))
+        # 判断进行条形码粘贴还是准考证填涂
+        if form:
+            # 获取条形码图片完整路径,准考证号条形码方式使用
+            b_file = get_file_path(stuname, b_folder)
+            # 准考证号条形码粘贴操作
+            resize_and_paste_image(c_file, b_file, position=eval(zk_position))
+        else:
+            # 获取学生准考证号,准考证号填涂使用
+            stu_barcode = stuname.split('.')[0]
+            # 准考证号填涂操作
+            find_rectangles_in_region(c_file,
+                                      eval(zk_position),
+                                      option_size=(62, 38),
+                                      option_count=10,
+                                      stu_barcode=stu_barcode,
+                                      direction=True)
+        # 选择题填涂操作
+        find_rectangles_in_region(c_file, eval(xz_position))
     print('题卡数据制造完成！')
 
 
@@ -61,7 +96,7 @@ def main():
         print(f'错误：题卡文件夹没有pdf文件!')
         return
 
-    # 条形码粘贴到题卡图片
+    # 条形码粘贴到题卡图片或准考证号填涂,并进行选择题填涂
     create_image_info(barname_list, barcode_folder, card_tuple[1])
 
     # 移动题卡及题卡图片文件夹到指定文件夹[判断测试环境还是正式环境]

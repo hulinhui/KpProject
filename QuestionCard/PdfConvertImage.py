@@ -23,6 +23,12 @@ def move_file_to_directory(source_path, destination_directory):
 
 
 def get_file_path(folder_name, root=None):
+    """
+    进行文件路径的拼接
+    :param folder_name: 文件夹名称
+    :param root: 原始文件夹
+    :return: 绝对路径
+    """
     if root is None:
         return os.path.join(os.getcwd(), folder_name)
     else:
@@ -30,6 +36,11 @@ def get_file_path(folder_name, root=None):
 
 
 def get_file_list(folder_path):
+    """
+    获取文件夹下的文件，返回文件名列表
+    :param folder_path:
+    :return: file_list
+    """
     file_list = []
     for name in os.listdir(folder_path):
         file_path = get_file_path(name, folder_path)
@@ -62,8 +73,11 @@ def convert_pdf_to_jpg(pdf_path, dpi=300):
     output_path:输出图片的文件夹路径
     """
     path_list = []
+    # 获取pdf去掉后缀的文件名
     output_folder = os.path.splitext(pdf_path)[0]
+    # 不存在文件夹即创建文件夹
     os.makedirs(output_folder, exist_ok=True)
+    # pdf转图片
     images = convert_from_path(pdf_path, dpi=dpi, poppler_path=r'D:\poppler-24.07.0\Library\bin')
 
     # 保存图片到指定的文件夹
@@ -96,6 +110,7 @@ def copy_images_in_sequence(number, img_path_01, img_path_02):
         shutil.copy(img_path_01, os.path.join(output_folder, f'{i:02d}.jpg'))
         # 复制02图片，使用偶数索引
         shutil.copy(img_path_02, os.path.join(output_folder, f'{i + 1:02d}.jpg'))
+    # 复制图片后的图片个数
     pic_num = len(get_file_list(output_folder))
     return pic_num
 
@@ -112,13 +127,17 @@ def generate_card_pic(count, card_folder, file_name):
        """
     # if file_name is None:
     #     file_name = get_newest_pdf(card_folder)
+    # 获取pdf文件完整路径
     pdf_path = get_file_path(file_name, card_folder)
+    # pdf转图片，并返回文件路径列表
     pic_path_list = convert_pdf_to_jpg(pdf_path)
     print(f'题卡-{file_name}：转图片生成{len(pic_path_list)}张图片')
+    # 图片复制
     pic_count = copy_images_in_sequence(count, *pic_path_list)
     print(f'题卡-{file_name}:复制图片共{pic_count}张图片')
+    # 返回pdf文件路径及图片文件夹名称，图片文件夹名称=pdf不带后缀的文件名
     return pdf_path, os.path.splitext(pdf_path)[0]
 
 
 if __name__ == '__main__':
-    generate_card_pic(10, 'cardinfo', file_name='语文手阅0830.pdf')
+    generate_card_pic(1, 'cardinfo', file_name='联考题卡.pdf')

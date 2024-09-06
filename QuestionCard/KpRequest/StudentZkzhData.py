@@ -121,7 +121,7 @@ class StudentZkzhData:
         result, data = self.check_response(response)
         if result:
             result_data = data.get("data").get("records")
-            stu_zkzh_data = [(item.get('zkzh'), item.get('studentName')) for item in result_data] if result_data else []
+            stu_zkzh_data = [item.get('zkzh') for item in result_data] if result_data else []
             return stu_zkzh_data
         else:
             self.logger.info('响应数据有误')
