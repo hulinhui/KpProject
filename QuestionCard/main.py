@@ -100,12 +100,12 @@ def main():
     create_image_info(barname_list, barcode_folder, card_tuple[1])
 
     # 移动题卡及题卡图片文件夹到指定文件夹[判断测试环境还是正式环境]
-    # final_path = kp_info['test_path'] if eval(kp_info['env_flag']) else kp_info['prod_path']
-    # [move_file_to_directory(soure_path, final_path) for soure_path in card_tuple]
+    final_path = kp_info['test_path'] if eval(kp_info['env_flag']) else kp_info['prod_path']
+    [move_file_to_directory(soure_path, final_path) for soure_path in card_tuple]
 
 
 if __name__ == '__main__':
-    file_name = '高中语文联考0822.pdf'  # 移动文件到cardinfo目录时需要传文件名(带后缀名)
+    file_name = '高中历史20240820170434.pdf'  # 移动文件到cardinfo目录时需要传文件名(带后缀名)
     # 实例化一个学生类
     stu_class = StudentZkzhData()
     # 获取学生类的kp数据

@@ -4,6 +4,7 @@ from QuestionCard.KpRequest.Handle_Logger import HandleLog
 from QuestionCard.KpRequest.FormatHeaders import get_format_headers, headers_kp, dict_cover_data, get_content_text
 from QuestionCard.KpRequest.NotifyMessage import read_config
 from urllib.parse import urlparse
+import json
 
 
 class StudentZkzhData:
@@ -34,7 +35,7 @@ class StudentZkzhData:
     @staticmethod
     def check_response(response, return_value=None):
         json_data = {} if response is None else response.json()
-        result = json_data['success'] if json_data and 'success' in json_data else False
+        result = json_data['result'] if json_data and 'result' in json_data else False
         if return_value is not None:
             return result
         else:
@@ -116,27 +117,57 @@ class StudentZkzhData:
     def get_student_data(self, school_id, school_area_id, class_id):
         student_url = self.kp_data['stu_url']
         student_data = {"classId": class_id, "schoolAreaId": school_area_id,
-                        "schoolId": school_id}
+                        "schoolId": school_id, "pageSize": 100}
         response = self.get_response(student_url, method='POST', data=student_data)
         result, data = self.check_response(response)
         if result:
             result_data = data.get("data").get("records")
             stu_zkzh_data = [item.get('zkzh') for item in result_data] if result_data else []
+            stu_zkzh_data.sort()
             return stu_zkzh_data
         else:
             self.logger.info('响应数据有误')
             return []
 
+    def find_card_by_name(self, card_name):
+        card_url = self.kp_data['card_url']
+        card_data = {"data": {"name": card_name, "orgId": "237172283877907003491"}, "pageSize": 100}
+        card_resp = self.get_response(url=card_url, method='POST', data=card_data)
+        result, data = self.check_response(card_resp)
+        if result:
+            card_id = data.get("data")[0].get("cardId")
+            return card_id
+        else:
+            self.logger.info('响应数据有误')
+
+    def get_zgt_max_score(self, card_name):
+        preview_url = self.kp_data['card_preview_url']
+        card_id = self.find_card_by_name(card_name)
+        if card_id is None:
+            self.logger.info(f'题卡--{card_name}:不存在')
+            return
+        preview_resp = self.get_response(preview_url.format(card_id), method='GET')
+        result, data = self.check_response(preview_resp)
+        if result:
+            paper_list = json.loads(data.get("data")).get('paperInfo')
+            zgt_score = [zgt['score']['fullMark'] for paper in paper_list for zgt in paper.get('zgt') if
+                         zgt.get('score')]
+            return zgt_score
+        else:
+            self.logger.info('响应数据有误')
+
     def run(self):
         org_id = self.get_login_token()
-        school_areaid = self.get_school_area(org_id)
-        grade_tuple = self.get_grade(self.kp_data['grade_name'], org_id)
-        class_id = self.get_class(school_areaid, *grade_tuple)
-        if not (org_id and school_areaid and class_id):
-            self.logger.info('必要参数获取失败！')
-            return
-        data = self.get_student_data(org_id, school_areaid, class_id)
-        return data
+        # school_areaid = self.get_school_area(org_id)
+        # grade_tuple = self.get_grade(self.kp_data['grade_name'], org_id)
+        # class_id = self.get_class(school_areaid, *grade_tuple)
+        # if not (org_id and school_areaid and class_id):
+        #     self.logger.info('必要参数获取失败！')
+        #     return
+        # data = self.get_student_data(org_id, school_areaid, class_id)
+        # return data
+        score_list = self.get_zgt_max_score('高中历史20240820170434')
+        print(score_list)
 
 
 if __name__ == '__main__':
