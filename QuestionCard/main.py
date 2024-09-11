@@ -72,7 +72,6 @@ def create_image_info(stuname_list, b_folder, c_folder):
             # 准考证号填涂操作
             find_rectangles_in_region(c_file,
                                       eval(zk_position),
-                                      option_size=(62, 38),
                                       option_count=10,
                                       stu_barcode=stu_barcode,
                                       direction=True)
@@ -105,7 +104,7 @@ def main():
 
 
 if __name__ == '__main__':
-    file_name = '高中历史20240820170434.pdf'  # 移动文件到cardinfo目录时需要传文件名(带后缀名)
+    file_name = '联考条形码题卡.pdf'  # 移动文件到cardinfo目录时需要传文件名(带后缀名)
     # 实例化一个学生类
     stu_class = StudentZkzhData()
     # 获取学生类的kp数据

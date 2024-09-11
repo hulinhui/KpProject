@@ -63,13 +63,12 @@ def get_newest_pdf(directory):
     return newest_pdf
 
 
-def convert_pdf_to_jpg(pdf_path, dpi=300):
+def convert_pdf_to_jpg(pdf_path):
     """
     将PDF文件转换为JPG图片。
 
     参数:
     pdf_name (str): PDF文件名。
-    dpi (int): 转换时使用的DPI值，DPI越高，输出图片的分辨率越高。
     output_path:输出图片的文件夹路径
     """
     path_list = []
@@ -78,14 +77,25 @@ def convert_pdf_to_jpg(pdf_path, dpi=300):
     # 不存在文件夹即创建文件夹
     os.makedirs(output_folder, exist_ok=True)
     # pdf转图片
-    images = convert_from_path(pdf_path, dpi=dpi, poppler_path=r'D:\poppler-24.07.0\Library\bin')
+    images = convert_from_path(pdf_path, poppler_path=r'D:\poppler-24.07.0\Library\bin')
+    # 指定图片的宽度和高度（例如：宽为1653像素，高为2339像素）
+    desired_width, desired_height = 1653, 2339
 
     # 保存图片到指定的文件夹
     for i, image in enumerate(images, 1):
+        # 获取当前图片的宽度和高度
+        current_width, current_height = image.size
+        # 计算缩放比例
+        ratio_w = desired_width / current_width
+        ratio_h = desired_height / current_height
+        ratio = min(ratio_w, ratio_h)
+        # 根据缩放比例调整图片大小
+        new_size = (int(current_width * ratio), int(current_height * ratio))
+        resized_image = image.resize(new_size)
         # 设置输出路径和文件名
         output_path = get_file_path(f'{i:02d}.jpg', output_folder)
         # 将PIL图像对象转换为JPG格式并保存
-        image.save(output_path, 'JPEG')
+        resized_image.save(output_path, 'JPEG')
         path_list.append(output_path)
     return path_list
 
@@ -140,4 +150,4 @@ def generate_card_pic(count, card_folder, file_name):
 
 
 if __name__ == '__main__':
-    generate_card_pic(1, 'cardinfo', file_name='高中语文联考0822.pdf')
+    generate_card_pic(1, 'cardinfo', file_name='联考条形码题卡.pdf')

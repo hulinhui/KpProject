@@ -11,8 +11,9 @@ class StudentZkzhData:
     def __init__(self):
         self.domain = None
         self.kp_data = read_config('KP')
-        self.headers = self.init_headers()
         self.logger = HandleLog()
+        self.headers = self.init_headers()
+        self.orgid = self.get_login_token()
 
     def init_headers(self):
         self.domain = self.kp_data['test_domain'] if self.kp_data['env_flag'] else self.kp_data['prod_domain']
@@ -57,9 +58,9 @@ class StudentZkzhData:
         else:
             self.logger.info('用户登录失败')
 
-    def get_school_area(self, org_id):
+    def get_school_area(self):
         area_url = self.kp_data['area_url']
-        area_params = {'orgId': org_id}
+        area_params = {'orgId': self.orgid}
         area_resp = self.get_response(area_url, method='GET', params=area_params)
         result, data = self.check_response(area_resp)
         if result:
@@ -84,10 +85,10 @@ class StudentZkzhData:
             grade_index = 9 + cover_func(grade_name[1])
         return str(step_index), str(grade_index)
 
-    def get_grade(self, grade_name, org_id):
+    def get_grade(self, grade_name):
         step_code, grade_code = self.name_cover_code(grade_name)
         grade_url = self.kp_data['grade_url']
-        grade_data = {"data": {"orgId": org_id, "includeGrades": 'true'}}
+        grade_data = {"data": {"orgId": self.orgid, "includeGrades": 'true'}}
         grade_resp = self.get_response(grade_url, method='POST', data=grade_data)
         result, data = self.check_response(grade_resp)
         if result:
@@ -114,10 +115,9 @@ class StudentZkzhData:
         else:
             self.logger.info('响应数据有误')
 
-    def get_student_data(self, school_id, school_area_id, class_id):
+    def get_student_data(self, school_area_id, class_id):
         student_url = self.kp_data['stu_url']
-        student_data = {"classId": class_id, "schoolAreaId": school_area_id,
-                        "schoolId": school_id, "pageSize": 100}
+        student_data = {"classId": class_id, "schoolAreaId": school_area_id, "schoolId": self.orgid, "pageSize": 100}
         response = self.get_response(student_url, method='POST', data=student_data)
         result, data = self.check_response(response)
         if result:
@@ -131,7 +131,7 @@ class StudentZkzhData:
 
     def find_card_by_name(self, card_name):
         card_url = self.kp_data['card_url']
-        card_data = {"data": {"name": card_name, "orgId": "237172283877907003491"}, "pageSize": 100}
+        card_data = {"data": {"name": card_name, "orgId": self.orgid}, "pageSize": 100}
         card_resp = self.get_response(url=card_url, method='POST', data=card_data)
         result, data = self.check_response(card_resp)
         if result:
@@ -140,7 +140,7 @@ class StudentZkzhData:
         else:
             self.logger.info('响应数据有误')
 
-    def get_zgt_max_score(self, card_name):
+    def get_zgt_max_score(self, card_name, ):
         preview_url = self.kp_data['card_preview_url']
         card_id = self.find_card_by_name(card_name)
         if card_id is None:
@@ -157,19 +157,17 @@ class StudentZkzhData:
             self.logger.info('响应数据有误')
 
     def run(self):
-        org_id = self.get_login_token()
-        # school_areaid = self.get_school_area(org_id)
-        # grade_tuple = self.get_grade(self.kp_data['grade_name'], org_id)
-        # class_id = self.get_class(school_areaid, *grade_tuple)
-        # if not (org_id and school_areaid and class_id):
-        #     self.logger.info('必要参数获取失败！')
-        #     return
-        # data = self.get_student_data(org_id, school_areaid, class_id)
-        # return data
-        score_list = self.get_zgt_max_score('高中历史20240820170434')
-        print(score_list)
+        school_areaid = self.get_school_area()
+        grade_tuple = self.get_grade(self.kp_data['grade_name'])
+        class_id = self.get_class(school_areaid, *grade_tuple)
+        if not (self.orgid and school_areaid and class_id):
+            self.logger.info('必要参数获取失败！')
+            return
+        data = self.get_student_data(school_areaid, class_id)
+        return data
 
 
 if __name__ == '__main__':
     student = StudentZkzhData()
-    student.run()
+    data_score = student.get_zgt_max_score('高中历史20240820170434')
+    print(data_score)
