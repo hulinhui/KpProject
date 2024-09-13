@@ -32,29 +32,25 @@ def get_point_data(data_list, number=None):
     return pos_data
 
 
-def paste_image(background_path, foreground_path, position):
+def paste_image(background_image, foreground_image, position):
     """
     将一张图片缩放到指定大小，然后放置到另一张图片的指定位置上并保存合成后的新图。
 
-    :param background_path: 背景图片的路径
-    :param foreground_path: 要放置的图片（前景）的路径
+    :param background_image: 背景图片的对象
+    :param foreground_image: 要放置的图片（前景）的对象
     :param position: 前景图片放置的位置及前景图的尺寸，格式为 (x, y,w,h)
     """
-
-    # 读取前景图片和背景图片
-    foreground = cv2.imdecode(np.fromfile(foreground_path, dtype=np.uint8), -1)
-    background = cv2.imdecode(np.fromfile(background_path, dtype=np.uint8), -1)
     # 获取定位及尺寸
     pos, size = position[:2], position[2:]
     # 调整前景图片的尺寸
-    resized_foreground = cv2.resize(foreground, size)
+    resized_foreground = cv2.resize(foreground_image, size)
     # 粘贴前景图片到背景图片上
-    background[pos[1]:pos[1] + size[1], pos[0]:pos[0] + size[0]] = resized_foreground
-    # 保存图片
-    cv2.imencode('.jpg', background)[1].tofile(background_path)
+    background_image[pos[1]:pos[1] + size[1], pos[0]:pos[0] + size[0]] = resized_foreground
+    # 释放图像占用的内存
+    del foreground_image
 
 
-def find_rectangles_in_region(image_path, point_tuple, option_height=25, option_range=2, option_count=4,
+def find_rectangles_in_region(image, point_tuple, option_height=25, option_range=2, option_count=4,
                               stu_barcode=None, direction=None):
     """
     指定图片的某个区域中寻找所有矩形，并打印它们的坐标。
@@ -62,7 +58,7 @@ def find_rectangles_in_region(image_path, point_tuple, option_height=25, option_
     按照题的选项个数进行拆分得到列表
     遍历选项定位列表进行，随机或按照准考证号进行填涂，黑色填充
     参数:
-    :param image_path: 图片的路径。
+    :param image: 图片的对象。
     :param point_tuple: 一个元组，指定区域中心的 (x,y,w,h) 坐标；x区域横坐标，y区域纵坐标，w区域长度，h区域高度。
     :param option_height: 选项区域选项的高度。 默认25
     :param option_range:选项宽高误差尺寸，默认3个
@@ -71,8 +67,6 @@ def find_rectangles_in_region(image_path, point_tuple, option_height=25, option_
     :param direction: 横向还是竖向排序【准考证号竖向，选择题横向】
     """
     # 定位
-    # 加载图片
-    image = cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), -1)
     # 获取局域坐标信息
     left, top, width, hight = point_tuple
     # 获取选项高度误差范围
@@ -116,8 +110,30 @@ def find_rectangles_in_region(image_path, point_tuple, option_height=25, option_
         start_x, start_y, end_x, end_y = random_coordinate
         # -1 全部填充  (0,0,0) 颜色
         cv2.rectangle(image, (start_x, start_y), (end_x, end_y), (0, 0, 0), -1)
-    # 保存图片
-    cv2.imencode('.jpg', image)[1].tofile(image_path)
+
+
+def create_image_data(b_file, c_file, stu_name, zk_position, xz_position, form):
+    # 加载题卡图片-背景图
+    c_image = cv2.imdecode(np.fromfile(c_file, dtype=np.uint8), -1)
+    # 判断进行条形码粘贴还是准考证填涂
+    if form:
+        # 加载条形码图片-前景图
+        b_image = cv2.imdecode(np.fromfile(b_file, dtype=np.uint8), -1)
+        # 准考证号条形码粘贴操作
+        paste_image(c_image, b_image, position=eval(zk_position))
+    else:
+        # 获取学生准考证号,准考证号填涂使用
+        stu_barcode = stu_name.split('.')[0]
+        # 准考证号填涂操作
+        find_rectangles_in_region(c_image,
+                                  eval(zk_position),
+                                  option_count=10,
+                                  stu_barcode=stu_barcode,
+                                  direction=True)
+    # 选择题填涂操作
+    find_rectangles_in_region(c_image, eval(xz_position))
+    # 保存最终填充的背景图片
+    cv2.imencode('.jpg', c_image)[1].tofile(c_file)
 
 
 if __name__ == '__main__':

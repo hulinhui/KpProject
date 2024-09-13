@@ -1,7 +1,7 @@
 from QuestionCard.KpRequest.StudentZkzhData import StudentZkzhData
 from QuestionCard.GenerateBarcode import generate_barcode
 from QuestionCard.PdfConvertImage import generate_card_pic, get_file_list, get_file_path, move_file_to_directory
-from QuestionCard.EditImage import paste_image, find_rectangles_in_region
+from QuestionCard.EditImage import paste_image, find_rectangles_in_region, create_image_data
 
 
 def get_point_info():
@@ -58,25 +58,12 @@ def create_image_info(stuname_list, b_folder, c_folder):
     zk_position, xz_position, form = get_point_info()
     # 遍历学生准考证号文件名
     for i, stuname in enumerate(stuname_list, 1):
+        # 获取条形码图片完整路径,准考证号条形码方式使用
+        b_file = get_file_path(stuname, b_folder)
         # 获取题卡奇数图片,填涂信息都在奇数页
         c_file = get_file_path(f'{2 * i - 1:02d}.jpg', c_folder)
-        # 判断进行条形码粘贴还是准考证填涂
-        if form:
-            # 获取条形码图片完整路径,准考证号条形码方式使用
-            b_file = get_file_path(stuname, b_folder)
-            # 准考证号条形码粘贴操作
-            paste_image(c_file, b_file, position=eval(zk_position))
-        else:
-            # 获取学生准考证号,准考证号填涂使用
-            stu_barcode = stuname.split('.')[0]
-            # 准考证号填涂操作
-            find_rectangles_in_region(c_file,
-                                      eval(zk_position),
-                                      option_count=10,
-                                      stu_barcode=stu_barcode,
-                                      direction=True)
-        # 选择题填涂操作
-        find_rectangles_in_region(c_file, eval(xz_position))
+        # 生成题卡数据【包含条形码粘贴、准考证号填充、选择题填充】
+        create_image_data(b_file, c_file, stuname, zk_position, xz_position, form)
     print('题卡数据制造完成！')
 
 
@@ -104,7 +91,7 @@ def main():
 
 
 if __name__ == '__main__':
-    file_name = '联考条形码题卡.pdf'  # 移动文件到cardinfo目录时需要传文件名(带后缀名)
+    file_name = '语文手阅0830.pdf'  # 移动文件到cardinfo目录时需要传文件名(带后缀名)
     # 实例化一个学生类
     stu_class = StudentZkzhData()
     # 获取学生类的kp数据

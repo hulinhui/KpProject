@@ -9,11 +9,11 @@ import json
 
 class StudentZkzhData:
     def __init__(self):
+        self.orgid = None
         self.domain = None
         self.kp_data = read_config('KP')
         self.logger = HandleLog()
         self.headers = self.init_headers()
-        self.orgid = self.get_login_token()
 
     def init_headers(self):
         self.domain = self.kp_data['test_domain'] if self.kp_data['env_flag'] else self.kp_data['prod_domain']
@@ -157,6 +157,7 @@ class StudentZkzhData:
             self.logger.info('响应数据有误')
 
     def run(self):
+        self.orgid = self.get_login_token()
         school_areaid = self.get_school_area()
         grade_tuple = self.get_grade(self.kp_data['grade_name'])
         class_id = self.get_class(school_areaid, *grade_tuple)

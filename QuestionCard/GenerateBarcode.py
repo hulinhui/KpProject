@@ -16,5 +16,7 @@ def generate_barcode(data):
 
 if __name__ == '__main__':
     # 使用该函数生成一个条形码
-    barcode_data = "42000002"  # 这是你希望编码的数据
-    generate_barcode(barcode_data)
+    barcode_list = ['42100001', '42100002', '42100003', '42100004', '42100005', '42100006', '42100007', '42100008',
+                    '42100009']  # 这是你希望编码的数据
+    for code in barcode_list:
+        generate_barcode(code)
