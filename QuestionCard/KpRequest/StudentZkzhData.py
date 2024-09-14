@@ -184,11 +184,8 @@ class StudentZkzhData:
     def find_card_type(self, card_name):
         self.orgid = self.get_login_token()
         card_tuple = self.find_card_by_name(card_name)
-        if card_tuple is None:
-            self.logger.info(f'系统内未找到题卡！')
-            return False
-        if card_tuple[1] != 4:
-            self.logger.info(f'当前题卡不是手阅题卡')
+        if card_tuple is None or card_tuple[1] != 4:
+            self.logger.info(f'题卡不满足手阅的条件！')
             return False
         return card_tuple[0]
 
