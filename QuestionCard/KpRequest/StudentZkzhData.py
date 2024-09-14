@@ -51,7 +51,7 @@ class StudentZkzhData:
         login_resp = self.get_response(login_url, method='POST', data=login_data)
         result, data = self.check_response(login_resp)
         if result:
-            self.logger.info(f"用户{self.kp_data['username']}:登录成功!")
+            # self.logger.info(f"用户{self.kp_data['username']}:登录成功!")
             self.headers['Authorization'] = f"Bearer {data.get('access_token')}"
             self.headers['Content-Type'] = get_content_text()
             return data.get('org_id')
@@ -136,23 +136,37 @@ class StudentZkzhData:
         result, data = self.check_response(card_resp)
         if result:
             card_id = data.get("data")[0].get("cardId")
-            return card_id
+            card_type = data.get("data")[0].get("cardType")
+            return card_id, card_type
         else:
             self.logger.info('响应数据有误')
 
-    def get_zgt_max_score(self, card_name, ):
+    @staticmethod
+    def process_zgt(zgt):
+        score_info = zgt.get('score')
+        if zgt.get('type') == 1 or not score_info:
+            return None
+        return {
+            'th': zgt.get('th'),
+            'score': score_info['fullMark'],
+            'scoreType': score_info['param']['scoreColumnType'],
+            'scoreCounts': score_info['param']['scoreCounts'],
+            'vals': score_info['param']['vals']
+        }
+
+    def get_zgt_preview_info(self, card_id):
         preview_url = self.kp_data['card_preview_url']
-        card_id = self.find_card_by_name(card_name)
-        if card_id is None:
-            self.logger.info(f'题卡--{card_name}:不存在')
-            return
         preview_resp = self.get_response(preview_url.format(card_id), method='GET')
         result, data = self.check_response(preview_resp)
         if result:
-            paper_list = json.loads(data.get("data")).get('paperInfo')
-            zgt_score = [zgt['score']['fullMark'] for paper in paper_list for zgt in paper.get('zgt') if
-                         zgt.get('score')]
-            return zgt_score
+            card_data = json.loads(data.get("data"))
+            card_item = {'card_type': card_data.get("nCardType", 0)}
+            paper_list = card_data.get('paperInfo', [])
+            for index, paper in enumerate(paper_list, 1):
+                question_list = [self.process_zgt(zgt) for zgt in paper.get('zgt', []) if
+                                 self.process_zgt(zgt) is not None]
+                card_item[f'paper_{index}'] = question_list
+            return card_item
         else:
             self.logger.info('响应数据有误')
 
@@ -167,8 +181,20 @@ class StudentZkzhData:
         data = self.get_student_data(school_areaid, class_id)
         return data
 
+    def find_card_type(self, card_name):
+        self.orgid = self.get_login_token()
+        card_tuple = self.find_card_by_name(card_name)
+        if card_tuple is None:
+            self.logger.info(f'系统内未找到题卡！')
+            return False
+        if card_tuple[1] != 4:
+            self.logger.info(f'当前题卡不是手阅题卡')
+            return False
+        return card_tuple[0]
+
 
 if __name__ == '__main__':
     student = StudentZkzhData()
-    data_score = student.get_zgt_max_score('高中历史20240820170434')
-    print(data_score)
+    card_ids = student.find_card_type('手阅测试题卡')
+    card_info = student.get_zgt_preview_info(card_ids)
+    print(card_info)

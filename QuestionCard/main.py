@@ -1,7 +1,7 @@
 from QuestionCard.KpRequest.StudentZkzhData import StudentZkzhData
 from QuestionCard.GenerateBarcode import generate_barcode
 from QuestionCard.PdfConvertImage import generate_card_pic, get_file_list, get_file_path, move_file_to_directory
-from QuestionCard.EditImage import paste_image, find_rectangles_in_region, create_image_data
+from QuestionCard.EditImage import create_image_data, short_answer_scoring
 
 
 def get_point_info():
@@ -54,16 +54,26 @@ def get_pdf_pic(barname_list, c_name, name):
 
 
 def create_image_info(stuname_list, b_folder, c_folder):
-    # 获取准考证号定位、选择题定位、准考证号的形式
+    # 获取准考证号定位、选择题定位、准考证号的形式【条形码还是填充】
     zk_position, xz_position, form = get_point_info()
+    # 判断题卡文件是否存在并且是手阅类型
+    card_id = stu_class.find_card_type(file_name)
+    # 获取题卡中解答题题组满分、打分类型、打分定位点
+    card_item = stu_class.get_zgt_preview_info(card_id) if card_id else None
     # 遍历学生准考证号文件名
     for i, stuname in enumerate(stuname_list, 1):
         # 获取条形码图片完整路径,准考证号条形码方式使用
         b_file = get_file_path(stuname, b_folder)
         # 获取题卡奇数图片,填涂信息都在奇数页
         c_file = get_file_path(f'{2 * i - 1:02d}.jpg', c_folder)
-        # 生成题卡数据【包含条形码粘贴、准考证号填充、选择题填充】
-        create_image_data(b_file, c_file, stuname, zk_position, xz_position, form)
+        # 获取题卡偶数图片,手阅操作使用
+        d_file = get_file_path(f'{2 * i:02d}.jpg', c_folder)
+        # 获取学生准考证号,准考证号填涂使用
+        stu_barcode = stuname.split('.')[0]
+        # 生成题卡数据【包含条形码粘贴、准考证号填充、选择题填充、第一页的手阅】
+        create_image_data(b_file, c_file, stu_barcode, zk_position, xz_position, form, card_item)
+        # 第二页题卡进行手阅操作
+        short_answer_scoring(d_file, card_item)
     print('题卡数据制造完成！')
 
 
@@ -77,7 +87,7 @@ def main():
         return
 
     # pdf题卡转图片，并按学生人数复制题卡图片,返回题卡图片文件夹路径及pdf文件路径
-    card_tuple = get_pdf_pic(barname_list, kp_info['c_name'], file_name)
+    card_tuple = get_pdf_pic(barname_list, kp_info['c_name'], f'{file_name}.pdf')
     if not card_tuple:
         print(f'错误：题卡文件夹没有pdf文件!')
         return
@@ -91,7 +101,7 @@ def main():
 
 
 if __name__ == '__main__':
-    file_name = '语文手阅0830.pdf'  # 移动文件到cardinfo目录时需要传文件名(带后缀名)
+    file_name = '手阅测试题卡'  # 移动文件到cardinfo目录时需要传文件名(带后缀名)
     # 实例化一个学生类
     stu_class = StudentZkzhData()
     # 获取学生类的kp数据

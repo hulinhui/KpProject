@@ -32,7 +32,7 @@ def get_point_data(data_list, number=None):
     return pos_data
 
 
-def paste_image(background_image, foreground_image, position):
+def paste_barcode_to_image(background_image, foreground_image, position):
     """
     将一张图片缩放到指定大小，然后放置到另一张图片的指定位置上并保存合成后的新图。
 
@@ -46,8 +46,6 @@ def paste_image(background_image, foreground_image, position):
     resized_foreground = cv2.resize(foreground_image, size)
     # 粘贴前景图片到背景图片上
     background_image[pos[1]:pos[1] + size[1], pos[0]:pos[0] + size[0]] = resized_foreground
-    # 释放图像占用的内存
-    del foreground_image
 
 
 def find_rectangles_in_region(image, point_tuple, option_height=25, option_range=2, option_count=4,
@@ -112,7 +110,64 @@ def find_rectangles_in_region(image, point_tuple, option_height=25, option_range
         cv2.rectangle(image, (start_x, start_y), (end_x, end_y), (0, 0, 0), -1)
 
 
-def create_image_data(b_file, c_file, stu_name, zk_position, xz_position, form):
+def get_random_score_list(question):
+    # 随机浮点数分数，分数范围（0，score）之间，可以存在小数（0.5的倍数）
+    random_score = random.randint(0, question.get('score', 1) * 2) / 2.0
+    print(f"第{question['th']}题随机获取的分数为：{random_score}")
+    # 获取整数位和小数位
+    integer_part, decimal_part = divmod(random_score, 1)
+    # 判断积分列规则，进行不同方式获取积分列表
+    if question['scoreType'] == 1:
+        # 第一种：11.5==>[11.0,0.5]
+        score_list = [integer_part] + ([decimal_part] if decimal_part else [])
+    else:
+        # 第二种：11.5==>[10.0,1.0,0.5]
+        integer_part_list = [(integer_part // 10) * 10, integer_part % 10] if integer_part > 10 else [integer_part]
+        score_list = integer_part_list if decimal_part == 0 else integer_part_list + [decimal_part]
+    # 根据积分列表获取到题卡对应积分定位点列表
+    pos_list = [pos_item for score in score_list for pos_item in question.get('vals') if pos_item['val'] == score]
+    return pos_list
+
+
+def execute_score(image, pos_list):
+    # 循环定位点列表
+    for pos_item in pos_list:
+        # 获取定位坐标(x,y,w,h)
+        hight, _, width, left, top = pos_item.values()
+        # 计算矩形中间的x坐标
+        center_x = (left + width + left) // 2
+        # 定义线的划线起点和终点纵坐标
+        line_start = (center_x, top - 50)
+        line_end = (center_x, top + hight + 100)
+        # 画线，颜色为红色，线条粗细为3
+        cv2.line(image, line_start, line_end, (0, 0, 255), 3)
+
+
+def short_answer_scoring(d_file, item):
+    # 获取第一页的信息还是第二页的信息
+    paper_key = 'paper_2' if isinstance(d_file, str) else 'paper_1'
+    # 获取页面满足条件的题组
+    question_list = item.get(paper_key) if item else []
+    # 页面没有解答题，直接退出手阅
+    if not question_list:
+        print('当前页获取不到手阅的题组！')
+        return
+    # 加载图像，看参数传的图像还是字符串，字符串就加载图像
+    image = cv2.imdecode(np.fromfile(d_file, dtype=np.uint8), -1) if isinstance(d_file, str) else d_file
+    # 循环题组信息
+    for question in question_list:
+        # 根据积分列规则返回对应的题组定位信息
+        pos_list = get_random_score_list(question)
+        # 执行评分操作
+        execute_score(image, pos_list)
+    # 判断传入的是图像对象还是字符串对象，图像对象直接退出，外面有保存，字符串对象直接保存
+    if not isinstance(d_file, str):
+        return
+    # 保存图片信息
+    cv2.imencode('.jpg', image)[1].tofile(d_file)
+
+
+def create_image_data(b_file, c_file, stu_barcode, zk_position, xz_position, form, card_item=None):
     # 加载题卡图片-背景图
     c_image = cv2.imdecode(np.fromfile(c_file, dtype=np.uint8), -1)
     # 判断进行条形码粘贴还是准考证填涂
@@ -120,27 +175,25 @@ def create_image_data(b_file, c_file, stu_name, zk_position, xz_position, form):
         # 加载条形码图片-前景图
         b_image = cv2.imdecode(np.fromfile(b_file, dtype=np.uint8), -1)
         # 准考证号条形码粘贴操作
-        paste_image(c_image, b_image, position=eval(zk_position))
+        paste_barcode_to_image(c_image, b_image, position=eval(zk_position))
+        # 释放图像占用的内存
+        del b_image
     else:
-        # 获取学生准考证号,准考证号填涂使用
-        stu_barcode = stu_name.split('.')[0]
         # 准考证号填涂操作
-        find_rectangles_in_region(c_image,
-                                  eval(zk_position),
-                                  option_count=10,
-                                  stu_barcode=stu_barcode,
-                                  direction=True)
+        find_rectangles_in_region(c_image, eval(zk_position), option_count=10, stu_barcode=stu_barcode, direction=True)
     # 选择题填涂操作
     find_rectangles_in_region(c_image, eval(xz_position))
+    # 获取到手阅题卡信息，进行手阅打分操作
+    short_answer_scoring(c_image, card_item)
     # 保存最终填充的背景图片
     cv2.imencode('.jpg', c_image)[1].tofile(c_file)
 
 
 if __name__ == '__main__':
     # 示例代码使用
-    # b_path = r'D:\PyCharm 2024.1.4\KpProject\QuestionCard\cardinfo\联考条形码题卡\01.jpg'  # 背景图片的路径
-    # f_path = r'D:\PyCharm 2024.1.4\KpProject\QuestionCard\barcode\42000001.png'  # 前景图片的路径
-    # f_pos = (1057, 424,470, 290)  # 前景图片放置的位置（x, y,w,h）
-    # paste_image(b_path, f_path, f_pos)
-    find_rectangles_in_region(r'D:\PyCharm 2024.1.4\KpProject\QuestionCard\cardinfo\联考条形码题卡\01.jpg',
-                              (121, 820, 1413, 213))
+    b_path = r'D:\PyCharm 2024.1.4\KpProject\QuestionCard\barcode\42000002.png'  # 背景图片的路径
+    f_path = r'D:\PyCharm 2024.1.4\KpProject\QuestionCard\cardinfo\手阅测试题卡\01.jpg'  # 前景图片的路径
+    s_barcode = '42000002'
+    zk_pos = '(1018, 412, 519, 391)'  # 前景图片放置的位置（x, y,w,h）
+    xz_pos = '(121, 912, 1415, 228)'
+    create_image_data(b_path, f_path, s_barcode, zk_pos, xz_pos, form=0)
