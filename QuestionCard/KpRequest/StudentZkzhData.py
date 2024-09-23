@@ -1,4 +1,3 @@
-import json
 import requests
 from QuestionCard.KpRequest.Handle_Logger import HandleLog
 from QuestionCard.KpRequest.FormatHeaders import get_format_headers, headers_kp, dict_cover_data, get_content_text
@@ -23,7 +22,7 @@ class StudentZkzhData:
 
     def get_response(self, url, method='GET', params=None, data=None):
         try:
-            data = json.dumps(data) if isinstance(data, dict) else data
+            data = json.dumps(data) if isinstance(data, (dict, list)) else data
             response = requests.request(method=method.upper(), url=self.domain + url, headers=self.headers,
                                         params=params,
                                         data=data)
@@ -51,7 +50,7 @@ class StudentZkzhData:
         login_resp = self.get_response(login_url, method='POST', data=login_data)
         result, data = self.check_response(login_resp)
         if result:
-            # self.logger.info(f"用户{self.kp_data['username']}:登录成功!")
+            self.logger.info(f"用户{data['org_name']}:登录成功!")
             self.headers['Authorization'] = f"Bearer {data.get('access_token')}"
             self.headers['Content-Type'] = get_content_text()
             return data.get('org_id')
