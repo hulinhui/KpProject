@@ -1,4 +1,5 @@
-from QuestionCard.KpRequest.StudentZkzhData import StudentZkzhData
+from QuestionCard.KpRequest.KpStudent import KpStudent
+from QuestionCard.KpRequest.KpCard import KpCard
 from QuestionCard.GenerateBarcode import generate_barcode
 from QuestionCard.PdfConvertImage import generate_card_pic, get_file_list, get_file_path, move_file_to_directory
 from QuestionCard.EditImage import create_image_data, short_answer_scoring
@@ -28,7 +29,8 @@ def get_student_count(folder_path):
     :return: barname_list  学生条形码名称列表数据
     """
     if not get_file_list(folder_path):
-        student_list = stu_class.run()
+        stu_class = KpStudent()
+        student_list = stu_class.query_student()
         if not student_list:
             return []
         for student in student_list:
@@ -57,9 +59,9 @@ def create_image_info(stuname_list, b_folder, c_folder):
     # 获取准考证号定位、选择题定位、准考证号的形式【条形码还是填充】
     zk_position, xz_position, form = get_point_info()
     # 判断题卡文件是否存在并且是手阅类型
-    card_id = stu_class.find_card_type(file_name)
+    card_id = card_class.find_card_type(file_name)
     # 获取题卡中解答题题组满分、打分类型、打分定位点
-    card_item = stu_class.get_zgt_preview_info(card_id) if card_id else None
+    card_item = card_class.get_zgt_preview_info(card_id) if card_id else None
     # 遍历学生准考证号文件名
     for i, stuname in enumerate(stuname_list, 1):
         # 获取条形码图片完整路径,准考证号条形码方式使用
@@ -102,8 +104,8 @@ def main():
 
 if __name__ == '__main__':
     file_name = '手阅测试题卡'  # 移动文件到cardinfo目录时需要传文件名(带后缀名)
-    # 实例化一个学生类
-    stu_class = StudentZkzhData()
-    # 获取学生类的kp数据
-    kp_info = stu_class.kp_data
+    # 实例化一个题卡类
+    card_class = KpCard()
+    # 获取题卡类的kp数据
+    kp_info = card_class.object.kp_data
     main()
