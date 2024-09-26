@@ -183,8 +183,10 @@ def create_image_data(b_file, c_file, stu_barcode, zk_position, xz_position, for
         find_rectangles_in_region(c_image, eval(zk_position), option_count=10, stu_barcode=stu_barcode, direction=True)
     # 选择题填涂操作
     find_rectangles_in_region(c_image, eval(xz_position))
-    # 获取到手阅题卡信息，进行手阅打分操作
-    short_answer_scoring(c_image, card_item)
+    # 手阅题卡第一页进行打分操作
+    if card_item is not None:
+        # 获取到手阅题卡信息，进行手阅打分操作
+        short_answer_scoring(c_image, card_item)
     # 保存最终填充的背景图片
     cv2.imencode('.jpg', c_image)[1].tofile(c_file)
 

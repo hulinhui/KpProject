@@ -74,6 +74,9 @@ def create_image_info(stuname_list, b_folder, c_folder):
         stu_barcode = stuname.split('.')[0]
         # 生成题卡数据【包含条形码粘贴、准考证号填充、选择题填充、第一页的手阅】
         create_image_data(b_file, c_file, stu_barcode, zk_position, xz_position, form, card_item)
+        # 网阅题卡直接跳过
+        if card_item is None:
+            continue
         # 第二页题卡进行手阅操作
         short_answer_scoring(d_file, card_item)
     print('题卡数据制造完成！')
@@ -98,12 +101,12 @@ def main():
     create_image_info(barname_list, barcode_folder, card_tuple[1])
 
     # 移动题卡及题卡图片文件夹到指定文件夹[判断测试环境还是正式环境]
-    final_path = kp_info['test_path'] if eval(kp_info['env_flag']) else kp_info['prod_path']
+    final_path = kp_info['test_path'] if kp_info['env_flag'] == 'test' else kp_info['prod_path']
     [move_file_to_directory(soure_path, final_path) for soure_path in card_tuple]
 
 
 if __name__ == '__main__':
-    file_name = '手阅测试题卡'  # 移动文件到cardinfo目录时需要传文件名(带后缀名)
+    file_name = '高中物理0829'  # 移动文件到cardinfo目录时需要传文件名(带后缀名)
     # 实例化一个题卡类
     card_class = KpCard()
     # 获取题卡类的kp数据

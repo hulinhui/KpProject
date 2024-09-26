@@ -58,6 +58,6 @@ class KpCard:
 
 if __name__ == '__main__':
     card = KpCard()
-    card_ids = card.find_card_type('语文手阅0830')
-    card_info = card.get_zgt_preview_info(card_ids)
-    print(card_info)
+    card_ids = card.find_card_type('高中物理0829')
+    # card_info = card.get_zgt_preview_info(card_ids)
+    print(card_ids)
