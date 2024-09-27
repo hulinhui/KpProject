@@ -1,4 +1,8 @@
 from QuestionCard.KpRequest.KpLogin import KpLogin
+from faker import Faker
+
+# 创建一个Faker实例，指定使用中文
+fake = Faker("zh-CN")
 
 
 class KpStudent:
@@ -111,9 +115,9 @@ class KpStudent:
         batch_list = []
         for index, label_info in enumerate(exam_label, 1):
             label_item = {"className": self.object.kp_data['class_name'],
-                          "studentName": f"{name}生{18+index}",
-                          "studentNo": f"{110018 + index}",
-                          "zkzh": f"{42200018 + index}",
+                          "studentName": fake.name(),
+                          "studentNo": f"{1000174 + index}",
+                          "zkzh": f"{42000174 + index}",
                           "selectExamLabelName": label_info[1], "index": index,
                           "gradeId": grade_id,
                           "gradeName": self.object.kp_data['grade_name'], "schoolAreaId": area_id,
@@ -126,8 +130,7 @@ class KpStudent:
         batch_data = self.get_batch_info(name)
         label_response = self.object.get_response(batch_url, method='POST', data=batch_data)
         result, data = self.object.check_response(label_response)
-        if result:
-            print(data)
+        if result and data['errorMsg'] == 'ok':
             self.object.logger.info(f'{name}==>批量添加学生成功！')
         else:
             self.object.logger.info('响应数据有误')
@@ -143,5 +146,5 @@ class KpStudent:
 
 if __name__ == '__main__':
     stu_obj = KpStudent()
-    # stu_obj.create_student('文理分科')
+    stu_obj.create_student('3+3')
     print(stu_obj.query_student())
