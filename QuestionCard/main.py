@@ -79,7 +79,7 @@ def create_image_info(stuname_list, b_folder, c_folder):
             continue
         # 第二页题卡进行手阅操作
         short_answer_scoring(d_file, card_item)
-    print('题卡数据制造完成！')
+    logger.info('题卡数据制造完成！')
 
 
 def main():
@@ -88,27 +88,29 @@ def main():
     # 获取学生人数
     barname_list = get_student_count(barcode_folder)
     if not barname_list:
-        print('错误：获取学生人数有误！')
+        logger.info('错误：获取学生人数有误！')
         return
 
     # pdf题卡转图片，并按学生人数复制题卡图片,返回题卡图片文件夹路径及pdf文件路径
     card_tuple = get_pdf_pic(barname_list, kp_info['c_name'], f'{file_name}.pdf')
     if not card_tuple:
-        print(f'错误：题卡文件夹没有pdf文件!')
+        logger.info(f'错误：题卡文件夹没有pdf文件!')
         return
 
     # 条形码粘贴到题卡图片或准考证号填涂,并进行选择题填涂
     create_image_info(barname_list, barcode_folder, card_tuple[1])
 
     # 移动题卡及题卡图片文件夹到指定文件夹[判断测试环境还是正式环境]
-    final_path = kp_info['test_path'] if kp_info['env_flag'] == 'test' else kp_info['prod_path']
+    final_path = get_file_path(kp_info['org_name'],
+                               kp_info['test_path' if kp_info['env_flag'] == 'test' else 'prod_path'])
     [move_file_to_directory(soure_path, final_path) for soure_path in card_tuple]
 
 
 if __name__ == '__main__':
-    file_name = '高中物理0829'  # 移动文件到cardinfo目录时需要传文件名(带后缀名)
+    file_name = '联考高中物理0929ZZ'  # 移动文件到cardinfo目录时需要传文件名(带后缀名)
     # 实例化一个题卡类
     card_class = KpCard()
     # 获取题卡类的kp数据
     kp_info = card_class.object.kp_data
+    logger = card_class.object.logger
     main()

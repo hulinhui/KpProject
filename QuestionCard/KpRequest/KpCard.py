@@ -5,7 +5,7 @@ from QuestionCard.KpRequest.KpLogin import KpLogin
 class KpCard:
     def __init__(self):
         self.object = KpLogin()
-        self.org_id = self.object.get_login_token()
+        self.org_id = None
 
     def find_card_by_name(self, card_name):
         card_url = self.object.kp_data['card_url']
@@ -49,6 +49,7 @@ class KpCard:
             self.object.logger.info('响应数据有误')
 
     def find_card_type(self, card_name):
+        self.org_id = self.object.get_login_token()
         card_tuple = self.find_card_by_name(card_name)
         if card_tuple is None or card_tuple[1] != 4:
             self.object.logger.info(f'题卡不满足手阅的条件！')

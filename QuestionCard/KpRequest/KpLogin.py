@@ -9,11 +9,10 @@ import time
 
 class KpLogin:
     def __init__(self):
-        self.orgid = None
         self.domain = None
+        self.headers = None
         self.kp_data = read_config('KP')
         self.logger = HandleLog()
-        self.headers = self.init_headers()
 
     def init_headers(self):
         self.domain = [self.kp_data[key] for key in self.kp_data.keys() if key.startswith(self.kp_data['env_flag'])][0]
@@ -47,6 +46,7 @@ class KpLogin:
         login_item = {'username': self.kp_data['username'], 'password': self.kp_data['passwd'],
                       'randomStr': '38716_1518792598512', 'code': 'ep3e',
                       'verCode': '', 'grant_type': 'password', 'scope': 'server', 'encrypted': 'false'}
+        self.headers = self.init_headers()
         login_resp = self.get_response(login_url, method='POST', data=dict_cover_data(login_item))
         result, data = self.check_response(login_resp)
         if not result:

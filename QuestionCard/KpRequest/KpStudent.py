@@ -113,11 +113,11 @@ class KpStudent:
         exam_label = self.query_exam_label(name)
         area_id, grade_id, _, class_id = self.query_info()
         batch_list = []
-        for index, label_info in enumerate(exam_label, 1):
+        for index, label_info in enumerate(exam_label[:10], 1):
             label_item = {"className": self.object.kp_data['class_name'],
                           "studentName": fake.name(),
-                          "studentNo": f"{1000174 + index}",
-                          "zkzh": f"{42000174 + index}",
+                          "studentNo": f"{1200000 + index}",
+                          "zkzh": f"{43000000 + index}",
                           "selectExamLabelName": label_info[1], "index": index,
                           "gradeId": grade_id,
                           "gradeName": self.object.kp_data['grade_name'], "schoolAreaId": area_id,
@@ -130,6 +130,7 @@ class KpStudent:
         batch_data = self.get_batch_info(name)
         label_response = self.object.get_response(batch_url, method='POST', data=batch_data)
         result, data = self.object.check_response(label_response)
+        print(data)
         if result and data['errorMsg'] == 'ok':
             self.object.logger.info(f'{name}==>批量添加学生成功！')
         else:

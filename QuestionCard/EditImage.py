@@ -193,9 +193,9 @@ def create_image_data(b_file, c_file, stu_barcode, zk_position, xz_position, for
 
 if __name__ == '__main__':
     # 示例代码使用
-    b_path = r'D:\PyCharm 2024.1.4\KpProject\QuestionCard\barcode\42000002.png'  # 背景图片的路径
-    f_path = r'D:\PyCharm 2024.1.4\KpProject\QuestionCard\cardinfo\手阅测试题卡\01.jpg'  # 前景图片的路径
-    s_barcode = '42000002'
-    zk_pos = '(1018, 412, 519, 391)'  # 前景图片放置的位置（x, y,w,h）
-    xz_pos = '(121, 912, 1415, 228)'
+    b_path = r'D:\PyCharm 2024.1.4\KpProject\QuestionCard\barcode\42900001.png'  # 背景图片的路径
+    f_path = r'D:\PyCharm 2024.1.4\KpProject\QuestionCard\cardinfo\联考zkzh题卡\01.jpg'  # 前景图片的路径
+    s_barcode = '42900001'
+    zk_pos = '(1018,412,519,391)'  # 前景图片放置的位置（x, y,w,h）
+    xz_pos = '(121, 862, 1415, 278)'
     create_image_data(b_path, f_path, s_barcode, zk_pos, xz_pos, form=0)
