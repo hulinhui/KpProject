@@ -4,6 +4,11 @@ from QuestionCard.GenerateBarcode import generate_barcode
 from QuestionCard.PdfConvertImage import generate_card_pic, get_file_list, get_file_path, move_file_to_directory
 from QuestionCard.EditImage import create_image_data, short_answer_scoring
 
+# 实例化一个题卡类
+card_class = KpCard()
+# 获取题卡类的kp数据
+kp_info, logger = card_class.object.kp_data, card_class.object.logger
+
 
 def get_point_info():
     """
@@ -44,14 +49,14 @@ def get_pdf_pic(barname_list, c_name, name):
     card_folder = get_file_path(c_name)
     # 移动指定目录题卡文件到当前题卡目录(card_folder)
     pdf_path = get_file_path(name, kp_info['origin_path'])
-    move_file_to_directory(pdf_path, card_folder)
+    move_file_to_directory(logger, pdf_path, card_folder)
     # 检查题卡目录是否存在pdf文件
     if not get_file_list(card_folder):
         return None
     # 存在文件时，进行生成题卡图片操作,返回元祖包含题卡文件夹路径及pdf文件路径
     barcode_count = len(barname_list)
     # pdf转图片并复制图片数量（条形码数量），返回图片pdf文件路径及图片文件夹名称
-    card_tuple = generate_card_pic(barcode_count, card_folder, file_name=name)
+    card_tuple = generate_card_pic(logger, barcode_count, card_folder, file_name=name)
     return card_tuple
 
 
@@ -103,14 +108,9 @@ def main():
     # 移动题卡及题卡图片文件夹到指定文件夹[判断测试环境还是正式环境]
     final_path = get_file_path(kp_info['org_name'],
                                kp_info['test_path' if kp_info['env_flag'] == 'test' else 'prod_path'])
-    [move_file_to_directory(soure_path, final_path) for soure_path in card_tuple]
+    [move_file_to_directory(logger, soure_path, final_path) for soure_path in card_tuple]
 
 
 if __name__ == '__main__':
     file_name = '联考高中物理0929ZZ'  # 移动文件到cardinfo目录时需要传文件名(带后缀名)
-    # 实例化一个题卡类
-    card_class = KpCard()
-    # 获取题卡类的kp数据
-    kp_info = card_class.object.kp_data
-    logger = card_class.object.logger
     main()

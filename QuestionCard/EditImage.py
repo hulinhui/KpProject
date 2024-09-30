@@ -113,7 +113,7 @@ def find_rectangles_in_region(image, point_tuple, option_height=25, option_range
 def get_random_score_list(question):
     # 随机浮点数分数，分数范围（0，score）之间，可以存在小数（0.5的倍数）
     random_score = random.randint(0, question.get('score', 1) * 2) / 2.0
-    print(f"第{question['th']}题随机获取的分数为：{random_score}")
+    # print(f"第{question['th']}题随机获取的分数为：{random_score}")
     # 获取整数位和小数位
     integer_part, decimal_part = divmod(random_score, 1)
     # 判断积分列规则，进行不同方式获取积分列表
