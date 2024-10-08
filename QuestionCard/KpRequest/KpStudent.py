@@ -130,8 +130,7 @@ class KpStudent:
         batch_data = self.get_batch_info(name)
         label_response = self.object.get_response(batch_url, method='POST', data=batch_data)
         result, data = self.object.check_response(label_response)
-        print(data)
-        if result and data['errorMsg'] == 'ok':
+        if result:
             self.object.logger.info(f'{name}==>批量添加学生成功！')
         else:
             self.object.logger.info('响应数据有误')
