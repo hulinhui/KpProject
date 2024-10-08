@@ -1,5 +1,4 @@
 import random
-from datetime import datetime, timedelta
 from QuestionCard.KpRequest.KpLogin import KpLogin
 from faker import Faker
 
@@ -105,13 +104,7 @@ class KpStudent:
         result, data = self.object.check_response(response)
         if result:
             result_data = data.get("data").get("records")
-            stu_zkzh_data = [item['zkzh'] for item in result_data if item.get('zkzh')] if result_data else []
-            stu_no_data = [item['studentNo'] for item in result_data if item.get('studentNo')] if result_data else []
-            if class_id is not None:
-                stu_zkzh_data.sort()
-                return stu_zkzh_data
-            else:
-                return int(max(stu_zkzh_data)), int(max(stu_no_data))
+            return result_data
         else:
             self.object.logger.warning('响应数据有误')
             return []
@@ -145,26 +138,11 @@ class KpStudent:
         class_id = self.get_class(school_areaid, *grade_tuple)
         return [school_areaid, *grade_tuple, class_id]
 
-    @staticmethod
-    def generate_random_birth_date():
-        """
-        生成随机学生的出生日期
-        :return:格式化年月日
-        """
-        current_year = datetime.now().year
-        birth_year = random.randint(1997, current_year - 8)  # 确保18岁以上
-        birth_month = random.randint(1, 12)
-        birth_day = random.randint(1, 28)  # 为简化起见，假设每月最多28天
-        try:
-            birth_date = datetime(birth_year, birth_month, birth_day)
-        except ValueError:  # 处理非法日期
-            birth_date = datetime(birth_year, birth_month, random.randint(1, 28))
-
-        # 再次确认日期的合法性
-        while birth_date >= datetime.now():
-            birth_date -= timedelta(days=1)
-
-        return birth_date.strftime("%Y-%m-%d")
+    def get_max_code(self, area_id):
+        result_data = self.get_student_data(area_id)
+        stu_no_data = [item['studentNo'] for item in result_data if item.get('studentNo')] if result_data else []
+        stu_zkzh_data = [item['zkzh'] for item in result_data if item.get('zkzh')] if result_data else []
+        return int(max(stu_no_data)), int(max(stu_zkzh_data))
 
     def get_batch_info(self, exam_label):
         """
@@ -176,11 +154,11 @@ class KpStudent:
         # 查询当前校区年级、班级、校级id
         area_id, grade_id, _, class_id = self.query_info()
         # 查询本校区内最大的准考证号、最大的学号
-        max_zkzh, max_no = self.get_student_data(area_id)
+        max_zkzh, max_no = self.get_max_code(area_id)
         # 添加学生的人数
         student_count = len(exam_label) if isinstance(exam_label, list) else int(exam_label)
         # 学生人数=0时，不执行后续操作，直接退出
-        if not student_count: return batch_list
+        if not (student_count and max_zkzh and max_no): return batch_list
         # 判断按选考还是按自定义，自定义的话无法获取选考标签，显示空字符串
         label_getter = lambda no, label: (label[no][0], label[no][1]) if isinstance(label, list) else ("", "")
         # 添加数据
@@ -193,7 +171,6 @@ class KpStudent:
                         "studentCode": f"{max_no + index}",
                         "tel": fake.phone_number(),
                         "sex": random.choice(range(1, 4)),
-                        "birthday": self.generate_random_birth_date(),
                         "idCardType": f"{random.choice(range(100001, 100013))}",
                         "idCard": fake.ssn(),
                         "index": index,
@@ -246,11 +223,16 @@ class KpStudent:
         if not (self.org_id and area_id and class_id):
             self.object.logger.warning('必要参数获取失败！')
             return
-        data = self.get_student_data(area_id, class_id)
-        return data
+        zkzh_data = self.get_student_data(area_id, class_id)
+        data = [item['zkzh'] for item in zkzh_data if item.get('zkzh')] if zkzh_data else []
+        return data.sort()
+
+    def delete_student(self):
+        area_id, *_, class_id = self.query_info()
+        result_data = self.get_student_data(area_id, class_id)
 
 
 if __name__ == '__main__':
     stu_obj = KpStudent()
-    stu_obj.add_student(label_name=None, stu_num='2')
+    stu_obj.add_student(label_name=None, stu_num='1')
     # print(stu_obj.query_student())
