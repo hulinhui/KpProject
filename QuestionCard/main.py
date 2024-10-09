@@ -35,7 +35,7 @@ def get_student_count(folder_path):
     """
     if not get_file_list(folder_path):
         stu_class = KpStudent()
-        student_list = stu_class.query_student()
+        student_list = stu_class.query_class_student_zkzh()
         if not student_list:
             return []
         for student in student_list:

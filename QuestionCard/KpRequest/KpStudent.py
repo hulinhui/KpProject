@@ -10,6 +10,7 @@ class KpStudent:
     def __init__(self):
         self.object = KpLogin()
         self.org_id = self.object.get_login_token()
+        self.ids_info = self.query_class_info()
 
     def get_school_area(self):
         """
@@ -91,15 +92,26 @@ class KpStudent:
         else:
             self.object.logger.warning('响应数据有误')
 
-    def get_student_data(self, school_area_id, class_id=None):
+    def query_class_info(self):
+        """
+        返回校区id、年级id、学阶id、班级id列表数据
+        :return:
+        """
+        school_areaid = self.get_school_area()
+        grade_tuple = self.get_grade(self.object.kp_data['grade_name'])
+        class_id = self.get_class(school_areaid, *grade_tuple)
+        return [school_areaid, *grade_tuple, class_id]
+
+    def query_student(self, area_id, class_id=None):
         """
         查询全校学生或查询单个班级学生
-        :param school_area_id: 校区id
+        :param area_id:   校区id
         :param class_id: 班级id,class_id默认为None，查询全校学生
         :return: 查询班级学生时，返回准考证号列表；查询全校学生时，返回最大的学号和准考证号的元祖，方便后面添加考生
         """
         student_url = self.object.kp_data['stu_url']
-        student_data = {"classId": class_id, "schoolAreaId": school_area_id, "schoolId": self.org_id, "pageSize": 9999}
+        student_data = {"classId": class_id, "schoolAreaId": area_id, "schoolId": self.org_id,
+                        "pageSize": 9999}
         response = self.object.get_response(student_url, method='POST', data=student_data)
         result, data = self.object.check_response(response)
         if result:
@@ -128,21 +140,32 @@ class KpStudent:
         else:
             self.object.logger.warning('响应数据有误')
 
-    def query_info(self):
+    def delete_student(self, student_ids):
         """
-        返回校区id、年级id、学阶id、班级id列表数据
+        删除学生
+        :param student_ids:
         :return:
         """
-        school_areaid = self.get_school_area()
-        grade_tuple = self.get_grade(self.object.kp_data['grade_name'])
-        class_id = self.get_class(school_areaid, *grade_tuple)
-        return [school_areaid, *grade_tuple, class_id]
+        delete_url = self.object.kp_data['del_stu_url']
+        area_id, *_, class_id = self.ids_info
+        delete_data = {"schoolAreaId": area_id, "classId": class_id, "studentIds": student_ids}
+        delete_response = self.object.get_response(delete_url, method='POST', data=delete_data)
+        result, data = self.object.check_response(delete_response)
+        if result:
+            self.object.logger.info('删除成功！')
+        else:
+            self.object.logger.warning(f"{data['message']}")
 
-    def get_max_code(self, area_id):
-        result_data = self.get_student_data(area_id)
+    def get_max_code(self):
+        """
+        获取全校内最大的学生准考证号及学号
+        :return: 最大的准考证号及最大的学号
+        """
+        result_data = self.get_student_data(all_flag=True)
         stu_no_data = [item['studentNo'] for item in result_data if item.get('studentNo')] if result_data else []
         stu_zkzh_data = [item['zkzh'] for item in result_data if item.get('zkzh')] if result_data else []
-        return int(max(stu_no_data)), int(max(stu_zkzh_data))
+        max_zkzh, max_no = max(stu_zkzh_data) if stu_zkzh_data else 0, max(stu_no_data) if stu_no_data else 0
+        return int(max_zkzh), int(max_no)
 
     def get_batch_info(self, exam_label):
         """
@@ -152,9 +175,9 @@ class KpStudent:
         """
         batch_list = []
         # 查询当前校区年级、班级、校级id
-        area_id, grade_id, _, class_id = self.query_info()
+        area_id, grade_id, _, class_id = self.ids_info
         # 查询本校区内最大的准考证号、最大的学号
-        max_zkzh, max_no = self.get_max_code(area_id)
+        max_zkzh, max_no = self.get_max_code()
         # 添加学生的人数
         student_count = len(exam_label) if isinstance(exam_label, list) else int(exam_label)
         # 学生人数=0时，不执行后续操作，直接退出
@@ -182,7 +205,7 @@ class KpStudent:
             batch_list.append(stu_item)
         return batch_list
 
-    def batch_add_student(self, batch_data):
+    def add_student(self, batch_data):
         """
         创建学生
         :param batch_data: 创建学生请求所需的data
@@ -200,7 +223,7 @@ class KpStudent:
         else:
             self.object.logger.warning('响应数据有误')
 
-    def add_student(self, label_name=None, stu_num=None):
+    def add_class_student(self, label_name=None, stu_num=None):
         """
         两种方式添加学生，
         一种自定义添加，传入stu_num(创建学生人数-字符串)即可；
@@ -216,23 +239,49 @@ class KpStudent:
         # 生成批量创建学生的data数据
         batch_data = self.get_batch_info(stu_num)
         # 创建学生
-        self.batch_add_student(batch_data)
+        self.add_student(batch_data)
 
-    def query_student(self):
-        area_id, *_, class_id = self.query_info()
-        if not (self.org_id and area_id and class_id):
+    def get_student_data(self, all_flag=False):
+        """
+        查询本校区学生数据
+        :param all_flag:
+        :return:
+        """
+        area_id, *_, class_id = self.ids_info
+        if not (self.org_id and area_id):
             self.object.logger.warning('必要参数获取失败！')
             return
-        zkzh_data = self.get_student_data(area_id, class_id)
-        data = [item['zkzh'] for item in zkzh_data if item.get('zkzh')] if zkzh_data else []
-        return data.sort()
+        class_id = None if all_flag else class_id
+        result_data = self.query_student(area_id, class_id)
+        return result_data
 
-    def delete_student(self):
-        area_id, *_, class_id = self.query_info()
-        result_data = self.get_student_data(area_id, class_id)
+    def query_class_student_zkzh(self):
+        """
+        查询班级学生准考证号
+        :return:
+        """
+        zkzh_data = self.get_student_data()
+        data = [item['zkzh'] for item in zkzh_data if item.get('zkzh')] if zkzh_data else []
+        data.sort()
+        return data
+
+    def delete_class_student(self, student_name=None):
+        """
+        查询班级学生，找到对应学生，执行删除
+        :param student_name: 默认为None，删除全班学生，传入学生名称，删除单个学生
+        :return: None
+        """
+        result_data = self.get_student_data()
+        student_ids = [item['studentId'] for item in result_data if
+                       item.get('studentName') == student_name or student_name is None] if result_data else []
+        if student_ids:
+            self.delete_student(student_ids)
+        else:
+            self.object.logger.warning(f'本班级未找到学生：{student_name}')
 
 
 if __name__ == '__main__':
     stu_obj = KpStudent()
-    stu_obj.add_student(label_name=None, stu_num='1')
-    # print(stu_obj.query_student())
+    # stu_obj.add_class_student(label_name='文理分科')
+    print(stu_obj.get_student_data())
+    stu_obj.delete_class_student()
