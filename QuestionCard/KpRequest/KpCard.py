@@ -8,6 +8,11 @@ class KpCard:
         self.org_id = None
 
     def find_card_by_name(self, card_name):
+        """
+        在机构中查找card_name题卡的信息
+        :param card_name: 题卡名称
+        :return: 题卡id，题卡类型
+        """
         card_url = self.object.kp_data['card_url']
         card_data = {"data": {"name": card_name, "orgId": self.org_id}, "pageSize": 100}
         card_resp = self.object.get_response(url=card_url, method='POST', data=card_data)
@@ -21,6 +26,11 @@ class KpCard:
 
     @staticmethod
     def process_zgt(zgt):
+        """
+        从主观题item中筛选出有用的数据，组成字典
+        :param zgt: 主观题信息
+        :return: 单题信息
+        """
         score_info = zgt.get('score')
         if zgt.get('type') == 1 or not score_info:
             return None
@@ -33,6 +43,11 @@ class KpCard:
         }
 
     def get_zgt_preview_info(self, card_id):
+        """
+        获取题卡预览信息-解答题信息（定位点及分数）
+        :param card_id: 题卡id
+        :return: card_item 解答题信息
+        """
         preview_url = self.object.kp_data['card_preview_url']
         preview_resp = self.object.get_response(preview_url.format(card_id), method='GET')
         result, data = self.object.check_response(preview_resp)
@@ -49,6 +64,13 @@ class KpCard:
             self.object.logger.info('响应数据有误')
 
     def find_card_type(self, card_name):
+        """
+        1、登录操作
+        2、查询题卡信息（题卡id及题卡类型）
+        3、判断题卡id及题卡类型
+        :param card_name: 题卡名称
+        :return: 题卡id
+        """
         self.org_id = self.object.get_login_token()
         card_tuple = self.find_card_by_name(card_name)
         if card_tuple is None or card_tuple[1] != 4:
