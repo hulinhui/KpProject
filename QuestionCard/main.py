@@ -112,5 +112,5 @@ def main():
 
 
 if __name__ == '__main__':
-    file_name = '联考高中物理0929ZZ'  # 移动文件到cardinfo目录时需要传文件名(带后缀名)
+    file_name = '高中英语20241010120816'  # 移动文件到cardinfo目录时需要传文件名(带后缀名)
     main()

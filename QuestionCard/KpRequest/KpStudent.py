@@ -283,5 +283,5 @@ class KpStudent:
 if __name__ == '__main__':
     stu_obj = KpStudent()
     # stu_obj.add_class_student(label_name='文理分科')
-    print(stu_obj.get_student_data())
-    stu_obj.delete_class_student()
+    print(stu_obj.get_max_code())
+    # stu_obj.delete_class_student()
