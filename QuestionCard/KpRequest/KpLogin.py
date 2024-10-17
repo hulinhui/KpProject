@@ -24,9 +24,10 @@ class KpLogin:
         headers = get_format_headers(headers_kp, **header_item)
         return headers
 
-    def get_response(self, url, method='GET', params=None, data=None):
+    def get_response(self, url, method='GET', params=None, data=None, files=None):
         """
         负责请求处理
+        :param files: 请求文件
         :param url: 请求url
         :param method: 请求方法
         :param params: 请求参数，get使用
@@ -34,14 +35,16 @@ class KpLogin:
         :return: response:请求响应对象
         """
         try:
-            data = json.dumps(data) if isinstance(data, (dict, list)) else data
+            data = json.dumps(data) if isinstance(data, (dict, list)) and files is None else data
             response = requests.request(method=method.upper(), url=self.domain + url, headers=self.headers,
                                         params=params,
-                                        data=data)
+                                        data=data,
+                                        files=files)
             response.raise_for_status()
             response.encoding = 'utf-8'
             return response
         except Exception as e:
+            print(e)
             self.logger.info(e)
 
     @staticmethod
