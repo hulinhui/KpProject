@@ -1,10 +1,15 @@
-import requests
+import urllib3
+from urllib3.exceptions import InsecureRequestWarning
 from QuestionCard.KpRequest.Handle_Logger import HandleLog
 from QuestionCard.KpRequest.FormatHeaders import get_format_headers, headers_kp, dict_cover_data, get_content_text
 from QuestionCard.KpRequest.NotifyMessage import read_config
 from urllib.parse import urlparse
 import json
 import time
+import requests
+
+# 忽略警告
+urllib3.disable_warnings(category=InsecureRequestWarning)
 
 
 class KpLogin:
@@ -39,7 +44,8 @@ class KpLogin:
             response = requests.request(method=method.upper(), url=self.domain + url, headers=self.headers,
                                         params=params,
                                         data=data,
-                                        files=files)
+                                        files=files,
+                                        verify=False)
             response.raise_for_status()
             response.encoding = 'utf-8'
             return response
