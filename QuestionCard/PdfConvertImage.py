@@ -3,6 +3,19 @@ import shutil
 from pdf2image import convert_from_path
 
 
+def clear_directory(directory):
+    try:
+        # 递归删除目录及文件
+        shutil.rmtree(directory)
+    except Exception as e:
+        print(f'Failed to delete directory. Reason: {e}')
+    else:
+        # 创建空文件夹
+        os.makedirs(directory, exist_ok=True)
+    finally:
+        pass
+
+
 def move_file_to_directory(logger, source_path, destination_directory):
     """
     移动文件及文件夹到指定的目录。
@@ -152,4 +165,6 @@ def generate_card_pic(logger, count, card_folder, file_name):
 
 
 if __name__ == '__main__':
-    generate_card_pic(1, 'cardinfo', file_name='联考zkzh题卡.pdf')
+    import logging
+
+    generate_card_pic(logging, 12, 'cardinfo', file_name='2024届高一数学10月24日141839.pdf')

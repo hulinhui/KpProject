@@ -1,7 +1,8 @@
 from QuestionCard.KpRequest.KpStudent import KpStudent
 from QuestionCard.KpRequest.KpCard import KpCard
 from QuestionCard.GenerateBarcode import generate_barcode
-from QuestionCard.PdfConvertImage import generate_card_pic, get_file_list, get_file_path, move_file_to_directory
+from QuestionCard.PdfConvertImage import (generate_card_pic, get_file_list,
+                                          get_file_path, move_file_to_directory, clear_directory)
 from QuestionCard.EditImage import create_image_data, short_answer_scoring
 
 # 实例化一个题卡类
@@ -27,20 +28,26 @@ def get_point_info():
     return point_item.get((int(kp_info['exam_flag']), int(kp_info['number_from'])), "无效的输入")
 
 
-def get_student_count(folder_path):
+def get_student_count(folder_path, clear_flag=False):
     """
     根据barcode文件夹中的学生条形码图片个数获取学生人数，即图片人数=学生人数
     文件夹中无图片或者需要更新时，获取系统学生信息
+    :param folder_path: 文件夹路径
+    :param clear_flag: 清除目录标记
     :return: barname_list  学生条形码名称列表数据
     """
-    if not get_file_list(folder_path):
+    if clear_flag:
+        # 清空文件夹文件
+        clear_directory(folder_path)
+        # 获取学生模块对象
         stu_class = KpStudent()
+        # 获取班级学生准考证号
         student_list = stu_class.query_class_student_zkzh()
-        if not student_list:
-            return []
-        for student in student_list:
-            generate_barcode(student)
+        # 批量生成学生条形码
+        list(map(generate_barcode, student_list)) if student_list else []
+    # 获取目录下所有文件名的列表
     barname_list = get_file_list(folder_path)
+    # 返回文件名列表
     return barname_list
 
 
