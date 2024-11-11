@@ -98,7 +98,7 @@ def main():
     # 获取学校条形码文件夹
     barcode_folder = get_file_path(kp_info['b_name'])
     # 获取学生人数
-    barname_list = get_student_count(barcode_folder)
+    barname_list = get_student_count(barcode_folder, clear_flag=False)
     if not barname_list:
         logger.info('错误：获取学生人数有误！')
         return
@@ -119,5 +119,5 @@ def main():
 
 
 if __name__ == '__main__':
-    file_name = '自制题卡网阅数据'  # 移动文件到cardinfo目录时需要传文件名(带后缀名)
+    file_name = '手阅测试题卡'  # 移动文件到cardinfo目录时需要传文件名(带后缀名)
     main()

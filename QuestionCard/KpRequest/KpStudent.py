@@ -82,13 +82,14 @@ class KpStudent:
         :return: class_id 班级id
         """
         class_url = self.object.kp_data['class_url']
+        name_list = self.object.kp_data['class_name'].split(',')
         class_data = {"type": "1", "schoolAreaId": aid, "gradeId": eid, "stepId": pid}
         response = self.object.get_response(class_url, method='POST', data=class_data)
         result, data = self.object.check_response(response)
         if result:
             class_list = [class_item['classId'] for class_item in data['data'] if
-                          class_item['className'] == self.object.kp_data['class_name']]
-            return class_list[0]
+                          class_item['className'] in name_list]
+            return class_list
         else:
             self.object.logger.warning('响应数据有误')
 
@@ -99,8 +100,8 @@ class KpStudent:
         """
         school_areaid = self.get_school_area()
         grade_tuple = self.get_grade(self.object.kp_data['grade_name'])
-        class_id = self.get_class(school_areaid, *grade_tuple)
-        return [school_areaid, *grade_tuple, class_id]
+        class_ids = self.get_class(school_areaid, *grade_tuple)
+        return [school_areaid, *grade_tuple, class_ids]
 
     def query_student(self, area_id, class_id=None):
         """
@@ -147,8 +148,8 @@ class KpStudent:
         :return:
         """
         delete_url = self.object.kp_data['del_stu_url']
-        area_id, *_, class_id = self.ids_info
-        delete_data = {"schoolAreaId": area_id, "classId": class_id, "studentIds": student_ids}
+        area_id, *_, class_ids = self.ids_info
+        delete_data = {"schoolAreaId": area_id, "classId": class_ids[0], "studentIds": student_ids}
         delete_response = self.object.get_response(delete_url, method='POST', data=delete_data)
         result, data = self.object.check_response(delete_response)
         if result:
@@ -175,7 +176,7 @@ class KpStudent:
         """
         batch_list = []
         # 查询当前校区年级、班级、校级id
-        area_id, grade_id, _, class_id = self.ids_info
+        area_id, grade_id, _, class_ids = self.ids_info
         # 查询本校区内最大的准考证号、最大的学号
         max_zkzh, max_no = self.get_max_code()
         # 添加学生的人数
@@ -186,22 +187,22 @@ class KpStudent:
         label_getter = lambda no, label: (label[no][0], label[no][1]) if isinstance(label, list) else ("", "")
         # 添加数据
         for index in range(1, student_count + 1):
-            stu_item = {"className": self.object.kp_data['class_name'],
-                        "studentName": fake.name(),
-                        "studentNo": f"{max_no + index}",
-                        "zkzh": f"{max_zkzh + index}",
-                        "selectExamLabelName": label_getter(index - 1, exam_label)[1],
-                        "studentCode": f"{max_no + index}",
-                        "tel": fake.phone_number(),
-                        "sex": random.choice(range(1, 4)),
-                        "idCardType": f"{random.choice(range(100001, 100013))}",
-                        "idCard": fake.ssn(),
-                        "index": index,
-                        "gradeId": grade_id,
-                        "gradeName": self.object.kp_data['grade_name'],
-                        "schoolAreaId": area_id,
-                        "classId": class_id,
-                        "selectExamLabelId": label_getter(index - 1, exam_label)[0]}
+            stu_item = {
+                "studentName": fake.name(),
+                "studentNo": f"{max_no + index}",
+                "zkzh": f"{max_zkzh + index}",
+                "selectExamLabelName": label_getter(index - 1, exam_label)[1],
+                "studentCode": f"{max_no + index}",
+                "tel": fake.phone_number(),
+                "sex": random.choice(range(1, 4)),
+                "idCardType": f"{random.choice(range(100001, 100013))}",
+                "idCard": fake.ssn(),
+                "index": index,
+                "gradeId": grade_id,
+                "gradeName": self.object.kp_data['grade_name'],
+                "schoolAreaId": area_id,
+                "classId": class_ids[0],
+                "selectExamLabelId": label_getter(index - 1, exam_label)[0]}
             batch_list.append(stu_item)
         return batch_list
 
@@ -223,6 +224,22 @@ class KpStudent:
         else:
             self.object.logger.warning('响应数据有误')
 
+    def get_student_data(self, all_flag=False):
+        """
+        查询本校区学生数据
+        :param all_flag: 查询全校学生
+        :return:
+        """
+        area_id, *_, class_ids = self.ids_info
+        if not (self.org_id and area_id):
+            self.object.logger.warning('必要参数获取失败！')
+            return []
+        if all_flag:
+            result_data = self.query_student(area_id, None)
+        else:
+            result_data = [item for class_id in class_ids for item in self.query_student(area_id, class_id)]
+        return result_data
+
     def add_class_student(self, label_name=None, stu_num=None):
         """
         两种方式添加学生，
@@ -240,20 +257,6 @@ class KpStudent:
         batch_data = self.get_batch_info(stu_num)
         # 创建学生
         self.add_student(batch_data)
-
-    def get_student_data(self, all_flag=False):
-        """
-        查询本校区学生数据
-        :param all_flag:
-        :return:
-        """
-        area_id, *_, class_id = self.ids_info
-        if not (self.org_id and area_id):
-            self.object.logger.warning('必要参数获取失败！')
-            return
-        class_id = None if all_flag else class_id
-        result_data = self.query_student(area_id, class_id)
-        return result_data
 
     def query_class_student_zkzh(self):
         """
@@ -282,6 +285,8 @@ class KpStudent:
 
 if __name__ == '__main__':
     stu_obj = KpStudent()
+    aa = stu_obj.query_class_student_zkzh()
+    print(aa)
     # stu_obj.add_class_student(label_name='文理分科')
-    print(stu_obj.get_max_code())
+    # print(stu_obj.get_max_code())
     # stu_obj.delete_class_student()

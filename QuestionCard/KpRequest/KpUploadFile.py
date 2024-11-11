@@ -34,7 +34,7 @@ class KpUploadFile:
         upload_data = exam.get_exam_info(org_id)
         folder_path = get_file_path('excel')
         upload_item = {
-            'stu': (data['upload_stu_url'], upload_data, get_file_path('参考学生导入模板.xlsx', folder_path)),
+            'stu': (data['upload_stu_lin_url'], upload_data, get_file_path('临时考生导入模板.xlsx', folder_path)),
             'tea': (data['upload_tea_url'], upload_data, get_file_path('阅卷老师导入模板.xlsx', folder_path)),
             'score': (data['upload_score_url'], upload_data, get_file_path('上传成绩导入模版.xlsx', folder_path))
         }
@@ -78,5 +78,5 @@ class KpUploadFile:
 
 
 if __name__ == '__main__':
-    uf = KpUploadFile(up_type='stu')
+    uf = KpUploadFile(up_type='tea')
     uf.run()

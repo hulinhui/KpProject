@@ -16,6 +16,6 @@ def generate_barcode(data):
 
 if __name__ == '__main__':
     # 使用该函数生成一个条形码
-    barcode_list = ['43000001', '43000002', '43000003', '43000004', '43000005', '43000006', '43000007', '43000008', '43000009', '43000010']
+    barcode_list = [str(i) for i in range(1300001, 1300019)]
     for code in barcode_list:
         generate_barcode(code)
