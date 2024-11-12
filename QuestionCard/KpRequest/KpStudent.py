@@ -9,7 +9,7 @@ fake = Faker("zh-CN")
 class KpStudent:
     def __init__(self):
         self.object = KpLogin()
-        self.org_id = self.object.get_login_token()
+        self.org_id, self.org_type = self.object.get_login_token(org_type=True)
         self.ids_info = self.query_class_info()
 
     def get_school_area(self):
@@ -93,14 +93,26 @@ class KpStudent:
         else:
             self.object.logger.warning('响应数据有误')
 
+    def get_edu_school(self):
+        name_list = self.object.kp_data['school_name'].split(',')
+        school_url = self.object.kp_data['school_url']
+        school_params = {'eduId': self.org_id}
+        school_resp = self.object.get_response(school_url, method='GET', params=school_params)
+        result, data = self.object.check_response(school_resp)
+        if result:
+            school_list = [school_item['orgId'] for school_item in data['data'] if school_item['orgName'] in name_list]
+            return school_list
+        else:
+            self.object.logger.warning('响应数据有误')
+
     def query_class_info(self):
         """
         返回校区id、年级id、学阶id、班级id列表数据
         :return:
         """
-        school_areaid = self.get_school_area()
+        school_areaid = self.get_school_area() if self.org_type == 2 else self.get_edu_school()
         grade_tuple = self.get_grade(self.object.kp_data['grade_name'])
-        class_ids = self.get_class(school_areaid, *grade_tuple)
+        class_ids = self.get_class(school_areaid, *grade_tuple) if self.org_type == 2 else None
         return [school_areaid, *grade_tuple, class_ids]
 
     def query_student(self, area_id, class_id=None):
@@ -121,6 +133,18 @@ class KpStudent:
         else:
             self.object.logger.warning('响应数据有误')
             return []
+
+    def query_edu_student(self, school_id, grade_id):
+        edu_stu_url = self.object.kp_data['edu_stu_url']
+        edu_stu_data = {"schoolId": school_id, "gradeId": grade_id, "eduId": self.org_id, "pageSize": 999}
+        name_list = self.object.kp_data['class_name'].split(',')
+        stu_response = self.object.get_response(edu_stu_url, method='POST', data=edu_stu_data)
+        result, data = self.object.check_response(stu_response)
+        if result:
+            record_list = data.get("data").get("records")
+            return [item for item in record_list if item['baseClassName'] in name_list]
+        else:
+            self.object.logger.warning('响应数据有误')
 
     def get_exam_label(self, label_name):
         """
@@ -230,14 +254,13 @@ class KpStudent:
         :param all_flag: 查询全校学生
         :return:
         """
-        area_id, *_, class_ids = self.ids_info
-        if not (self.org_id and area_id):
+        school_ids, grade_id, _, class_ids = self.ids_info
+        if not (self.org_id and school_ids and grade_id):
             self.object.logger.warning('必要参数获取失败！')
             return []
-        if all_flag:
-            result_data = self.query_student(area_id, None)
-        else:
-            result_data = [item for class_id in class_ids for item in self.query_student(area_id, class_id)]
+        result_data = ([item for school_id in school_ids for item in self.query_edu_student(school_id, grade_id)]
+                       if isinstance(school_ids, list) else self.query_student(school_ids, None)
+        if all_flag else [item for class_id in class_ids for item in self.query_student(school_ids, class_id)])
         return result_data
 
     def add_class_student(self, label_name=None, stu_num=None):
@@ -285,8 +308,9 @@ class KpStudent:
 
 if __name__ == '__main__':
     stu_obj = KpStudent()
+    stu_obj.delete_class_student()
     aa = stu_obj.query_class_student_zkzh()
-    print(aa)
+    print(aa, len(aa))
     # stu_obj.add_class_student(label_name='文理分科')
     # print(stu_obj.get_max_code())
     # stu_obj.delete_class_student()

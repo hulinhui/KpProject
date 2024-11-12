@@ -76,7 +76,7 @@ class KpLogin:
         """
         valid_account_num = sum(1 for _ in data['data']['users'] if _.get('companyEnable'))
         if valid_account_num == 1:
-            org_info = data['org_name'], data.get('org_id')
+            org_info = data['org_name'], data.get('org_id'), data.get('orgType')
         elif valid_account_num > 1:
             org_info = self.change_account(data.get('data'))
         else:
@@ -103,11 +103,11 @@ class KpLogin:
         result, data = self.check_response(user_resp)
         if result:
             self.headers['Authorization'] = f"Bearer {data['data']['accessToken']}"
-            return data['data']['companyName'], data['data']['companyId']
+            return data['data']['companyName'], data['data']['companyId'], data['data']['orgType']
         else:
             self.logger.info('响应数据有误')
 
-    def get_login_token(self):
+    def get_login_token(self, org_type=False):
         """
         登录
         :return: org_id  机构id
@@ -127,7 +127,8 @@ class KpLogin:
         org_info = self.get_org_info(data)
         if org_info is not None:
             self.logger.info(f"用户-{org_info[0]}:登录成功!")
-            return org_info[1]
+            return_data = org_info[1:] if org_type else org_info[1]
+            return return_data
         else:
             self.logger.info('用户登录失败')
 
