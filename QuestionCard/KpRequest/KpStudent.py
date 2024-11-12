@@ -7,10 +7,10 @@ fake = Faker("zh-CN")
 
 
 class KpStudent:
-    def __init__(self):
+    def __init__(self, is_run=True):
         self.object = KpLogin()
         self.org_id, self.org_type = self.object.get_login_token(org_type=True)
-        self.ids_info = self.query_class_info()
+        self.ids_info = self.query_class_info() if is_run else None
 
     def get_school_area(self):
         """

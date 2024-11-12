@@ -32,11 +32,25 @@ class KpExam:
         else:
             self.login_object.logger.info('获取响应失败!')
 
+    def exam_detail(self, exam_id):
+        detail_url = self.data['exam_detail_url']
+        detail_params = {'examId': exam_id, 'findType': 2, 'findState': 0}
+        detail_response = self.login_object.get_response(url=detail_url, method='GET', params=detail_params)
+        result, r_data = self.login_object.check_response(detail_response)
+        if result:
+            grade_id = r_data['data']['gradeId']
+            exam_type = r_data['data']['examModel'] or None
+            school_ids = ','.join([item['schoolId'] for item in r_data['data']['papers'][0]['schoolList']])
+            return {'examId': exam_id, 'gradeId': grade_id, 'schoolIds': school_ids, 'modelType': exam_type}
+        else:
+            self.login_object.logger.info('获取响应失败!')
+
     def get_exam_info(self, org_id):
         exam_id = self.search_exam(org_id)
         if not exam_id:
             return
         exam_info = self.search_paper(exam_id, org_id)
+        exam_dd = self.exam_detail(exam_id)
         return exam_info
 
 

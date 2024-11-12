@@ -7,7 +7,7 @@ class KpUploadFile:
     def __init__(self, up_type):
         self.login = KpLogin()
         self.logger = self.login.logger
-        self.up_list = ['stu', 'tea', 'score']
+        self.up_list = ['stu', 'lin_stu', 'tea', 'score']
         self.upload_type = self._check_type(up_type)
 
     def _check_type(self, up_type):
@@ -20,6 +20,18 @@ class KpUploadFile:
     def create_excel_data(self):
         pass
 
+    def get_exam_data(self, exam, org_id):
+        upload_data = None
+        exam_id = exam.search_exam(org_id)
+        if not exam_id: return upload_data
+        if self.upload_type in ['stu', 'tea', 'score']:
+            data = exam.search_paper(exam_id, org_id)
+            upload_data = data.update(
+                {'absent': 0, 'override': 'false', 'entrance': 1}) if self.upload_type == 'score' else data
+        if self.upload_type == 'lin_stu':
+            upload_data = exam.exam_detail(exam_id)
+        return upload_data
+
     def get_upload_info(self, org_id):
         """
         获取上传所需数据
@@ -31,10 +43,11 @@ class KpUploadFile:
         # 调用考试模块对象(传参为登录模块对象)
         exam = KpExam(self.login)
         # 考试模块获取exam_id及paper_id
-        upload_data = exam.get_exam_info(org_id)
+        upload_data = self.get_exam_data(exam, org_id)
         folder_path = get_file_path('excel')
         upload_item = {
-            'stu': (data['upload_stu_lin_url'], upload_data, get_file_path('临时考生导入模板.xlsx', folder_path)),
+            'stu': (data['upload_stu_url'], upload_data, get_file_path('参考学生导入模板.xlsx', folder_path)),
+            'lin_stu': (data['upload_stu_lin_url'], upload_data, get_file_path('临时考生导入模板.xlsx', folder_path)),
             'tea': (data['upload_tea_url'], upload_data, get_file_path('阅卷老师导入模板.xlsx', folder_path)),
             'score': (data['upload_score_url'], upload_data, get_file_path('上传成绩导入模版.xlsx', folder_path))
         }
@@ -78,5 +91,5 @@ class KpUploadFile:
 
 
 if __name__ == '__main__':
-    uf = KpUploadFile(up_type='tea')
+    uf = KpUploadFile(up_type='lin_stu')
     uf.run()
