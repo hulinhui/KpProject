@@ -2,15 +2,13 @@ import random
 from QuestionCard.KpRequest.KpLogin import KpLogin
 from faker import Faker
 
-# 创建一个Faker实例，指定使用中文
-fake = Faker("zh-CN")
-
 
 class KpStudent:
-    def __init__(self, is_run=True):
+    def __init__(self, ids_run=True):
         self.object = KpLogin()
         self.org_id, self.org_type = self.object.get_login_token(org_type=True)
-        self.ids_info = self.query_class_info() if is_run else None
+        self.faker = Faker("zh-CN")
+        self.ids_info = self.query_class_info() if ids_run else None
 
     def get_school_area(self):
         """
@@ -212,15 +210,15 @@ class KpStudent:
         # 添加数据
         for index in range(1, student_count + 1):
             stu_item = {
-                "studentName": fake.name(),
+                "studentName": self.faker.name(),
                 "studentNo": f"{max_no + index}",
                 "zkzh": f"{max_zkzh + index}",
                 "selectExamLabelName": label_getter(index - 1, exam_label)[1],
                 "studentCode": f"{max_no + index}",
-                "tel": fake.phone_number(),
+                "tel": self.faker.phone_number(),
                 "sex": random.choice(range(1, 4)),
                 "idCardType": f"{random.choice(range(100001, 100013))}",
-                "idCard": fake.ssn(),
+                "idCard": self.faker.ssn(),
                 "index": index,
                 "gradeId": grade_id,
                 "gradeName": self.object.kp_data['grade_name'],

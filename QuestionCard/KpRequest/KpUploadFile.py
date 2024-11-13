@@ -1,6 +1,7 @@
 from QuestionCard.KpRequest.KpLogin import KpLogin
 from QuestionCard.KpRequest.KpExam import KpExam
 from QuestionCard.PdfConvertImage import get_file_path
+from QuestionCard.KpRequest.CreateTempStu import GenerateExcel
 
 
 class KpUploadFile:
@@ -17,9 +18,6 @@ class KpUploadFile:
             raise Exception("上传类型不满足条件")
         return up_type
 
-    def create_excel_data(self):
-        pass
-
     def get_exam_data(self, exam, org_id):
         upload_data = None
         exam_id = exam.search_exam(org_id)
@@ -30,6 +28,7 @@ class KpUploadFile:
                 {'absent': 0, 'override': 'false', 'entrance': 1}) if self.upload_type == 'score' else data
         if self.upload_type == 'lin_stu':
             upload_data = exam.exam_detail(exam_id)
+            GenerateExcel().run('文理分科', upload_data['modelType'])
         return upload_data
 
     def get_upload_info(self, org_id):
@@ -47,7 +46,7 @@ class KpUploadFile:
         folder_path = get_file_path('excel')
         upload_item = {
             'stu': (data['upload_stu_url'], upload_data, get_file_path('参考学生导入模板.xlsx', folder_path)),
-            'lin_stu': (data['upload_stu_lin_url'], upload_data, get_file_path('临时考生导入模板.xlsx', folder_path)),
+            'lin_stu': (data['upload_stu_lin_url'], upload_data, get_file_path('临时考生导入模版.xlsx', folder_path)),
             'tea': (data['upload_tea_url'], upload_data, get_file_path('阅卷老师导入模板.xlsx', folder_path)),
             'score': (data['upload_score_url'], upload_data, get_file_path('上传成绩导入模版.xlsx', folder_path))
         }
@@ -67,6 +66,7 @@ class KpUploadFile:
             upload_response = self.login.get_response(url=upload_url, method='POST', data=upload_data,
                                                       files={'file': fp})
         result, data = self.login.check_response(upload_response)
+        print(data)
         if not result:
             # 接口数据返回失败，一种是接口直接返回（errormsg），另一种是记录到错误提示+
             error_data = data['data']
