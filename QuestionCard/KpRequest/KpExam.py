@@ -117,5 +117,4 @@ if __name__ == '__main__':
 
     kp_login = KpLogin()
     ke = KpExam(kp_login)
-    orgId = ke.login_object.get_login_token()
-    ke.get_exam_info(orgId)
+    ke.run()
