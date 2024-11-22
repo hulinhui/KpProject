@@ -68,21 +68,19 @@ class KpLogin:
         else:
             return result, json_data
 
-    def get_org_info(self, data):
+    def get_org_info(self, data, keys):
         """
         判断当前账号是否存在多个机构，单个机构直接返回机构信息，多个机构根据配置信息-学校名称返回机构信息
         :param data: 当前账号登录的默认机构
         :return: org_info （机构名，机构id）
         """
-        valid_account_num = sum(1 for _ in data['data']['users'] if _.get('companyEnable'))
-        if valid_account_num == 1:
-            org_info = data['org_name'], data.get('org_id'), data.get('orgType')
-        elif valid_account_num > 1:
-            org_info = self.change_account(data.get('data'))
-        else:
-            self.logger.info('当前账号无有效的机构！')
-            org_info = None
-        return org_info
+        user_data = data.get('data')
+        valid_account_num = sum(1 for _ in user_data['users'] if _.get('companyEnable'))
+        org_info = self.change_account(
+            user_data) if valid_account_num > 1 else user_data if valid_account_num == 1 else (
+                self.logger.info('当前账号无有效的机构！') or None)
+        info_list = [org_info[key] for key in ['name', 'orgId'] + (keys or [])] if org_info else None
+        return info_list
 
     def change_account(self, a_data):
         """
@@ -103,11 +101,12 @@ class KpLogin:
         result, data = self.check_response(user_resp)
         if result:
             self.headers['Authorization'] = f"Bearer {data['data']['accessToken']}"
-            return data['data']['companyName'], data['data']['companyId'], data['data']['orgType']
+            return data['data']
+            # return data['data']['name'], data['data']['orgId'], data['data']['orgType'], data['data']['userId']
         else:
             self.logger.info('响应数据有误')
 
-    def get_login_token(self, org_type=False):
+    def get_login_token(self, keys=None):
         """
         登录
         :return: org_id  机构id
@@ -124,13 +123,10 @@ class KpLogin:
             return
         self.headers['Authorization'] = f"Bearer {data.get('access_token')}"
         self.headers['Content-Type'] = get_content_text()
-        org_info = self.get_org_info(data)
-        if org_info is not None:
-            self.logger.info(f"用户-{org_info[0]}:登录成功!")
-            return_data = org_info[1:] if org_type else org_info[1]
-            return return_data
-        else:
-            self.logger.info('用户登录失败')
+        info_list = self.get_org_info(data, keys)
+        info_list and self.logger.info(f"用户-{info_list[0]}:登录成功!")
+        info_data = info_list and info_list[1] if len(info_list) == 2 else info_list[1:]
+        return info_data
 
 
 if __name__ == '__main__':

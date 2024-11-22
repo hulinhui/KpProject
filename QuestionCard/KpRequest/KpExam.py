@@ -65,7 +65,7 @@ class KpExam:
         """
         全卷重评
         :param remark_data: 考试id及paperid的字典
-        :return:
+        :return: None
         """
         remark_url = self.data['remark_url']
         remark_response = self.login_object.get_response(url=remark_url, method='POST', data=remark_data)
@@ -80,7 +80,7 @@ class KpExam:
         全卷暂停或全卷恢复
         :param marking_data: 考试id及paperid的字典
         :param valid: 状态，1-恢复，9-暂停
-        :return:
+        :return: None
         """
         marking_url = self.data['marking_url']
         marking_data.update({'valid': valid})
@@ -105,7 +105,7 @@ class KpExam:
         exam_info = self.get_exam_info(org_id)
         if exam_info is not None:
             # 全卷恢复或暂停
-            self.exam_marking(exam_info, 1)
+            # self.exam_marking(exam_info, 1)
             # 全卷重评
             self.exam_remark(exam_info)
         else:

@@ -6,7 +6,7 @@ from faker import Faker
 class KpStudent:
     def __init__(self, ids_run=True):
         self.object = KpLogin()
-        self.org_id, self.org_type = self.object.get_login_token(org_type=True)
+        self.org_id, self.org_type = self.object.get_login_token(keys=['orgType'])
         self.faker = Faker("zh-CN")
         self.ids_info = self.query_class_info() if ids_run else None
 
