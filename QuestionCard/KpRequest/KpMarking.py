@@ -70,14 +70,15 @@ class KpMarking:
         if result:
             t_data = r_data.get("data")
             encode_no = t_data and t_data.get("encode") or None
-            encode_no is None or self.login_object.logger.info(f"当前题组【{div_dict['itemId']}】暂时无任务")
+            encode_no is None and self.login_object.logger.info(f"当前题组【{div_dict['itemId']}】暂时无任务")
             return encode_no
         else:
             error_msg = r_data.get("errorCode") and r_data.get("errorMsg") or '获取响应失败!'
             self.login_object.logger.info(error_msg)
-            return r_data.get("errorCode")
+            return result
 
     def generate_random_score(self, point_item, score_type=1):
+        if not point_item: return
         for score_item in point_item.get('scorePoints', []):
             end, step = score_item.get('total_score'), score_item.get('step')
             score_iter = (round(i * step, 1) for i in range(int(end / step) + 2))
@@ -87,7 +88,8 @@ class KpMarking:
             score_item.update({'score': score})
         return point_item
 
-    def submit_score(self, submit_data):
+    def req_submit_score(self, submit_data):
+        if not submit_data: return
         normal_url = self.data['submit_normal_url']
         normal_data = {"data": submit_data}
         normal_response = self.login_object.get_response(url=normal_url, method='POST', data=normal_data)
@@ -98,25 +100,22 @@ class KpMarking:
             error_msg = r_data.get("errorCode") and r_data.get("errorMsg") or '获取响应失败!'
             self.login_object.logger.info(error_msg)
 
-    def submit_normal_score(self, div_dict):
-        if not div_dict:
-            return
-        div_alias = div_dict.pop('div_alias')
+    def submit_normal_score(self, div_data):
+        if not div_data: return
+        div_alias = div_data.pop('div_alias')
         while div_alias:
-            div_name = div_alias.pop(0)
-            div_dict['itemId'] = div_name
-            encode_no = self.div_reques_task(div_dict)
-            if encode_no == '10000':
-                continue
-            point_item = self.query_div_detail(div_dict)
+            div_data['itemId'] = div_alias.pop(0)
+            encode_no = self.div_reques_task(div_data)
+            self.login_object.logger.info(f"题组【{div_data['itemId']}】开始阅卷")
+            if not encode_no: continue
+            div_item = self.query_div_detail(div_data)
             while True:
-                if encode_no is None:
-                    break
-                point_item.update({'encode': encode_no, 'pjSeq': 1})
-                submit_data = self.generate_random_score(point_item)
-                self.submit_score(submit_data)
-                time.sleep(2)
-                encode_no = self.div_reques_task(div_dict)
+                if not encode_no: break
+                div_item and div_item.update({'encode': encode_no, 'pjSeq': 2})
+                submit_data = self.generate_random_score(div_item)
+                self.req_submit_score(submit_data)
+                time.sleep(0.5)
+                encode_no = self.div_reques_task(div_data)
         else:
             self.login_object.logger.info('阅卷结束！')
 
@@ -134,9 +133,9 @@ class KpMarking:
         return {'examId': exam_id, 'paperId': paper_id, 'paper_name': paper_name, 'paper_info': paper_info}
 
     def run(self):
-        exam_dict = self.exam_paper_info()
-        div_dict = self.get_normal_task(exam_dict)
-        self.submit_normal_score(div_dict)
+        exam_data = self.exam_paper_info()
+        exam_div_data = self.get_normal_task(exam_data)
+        self.submit_normal_score(exam_div_data)
 
 
 if __name__ == '__main__':
