@@ -38,9 +38,9 @@ class KpMarking:
         if exam_info:
             paper_name = exam_info.pop('paper_name')
             divtask_list = exam_info.pop('paper_info').get('taskList', [])
-            div_alias, remain_nums = list(
+            div_alias, remain_nums = divtask_list and list(
                 zip(*[(_['divAlias'], _['remainNum']) for _ in divtask_list if _['remainNum']])) or ([], [])
-            finish_num = sum([item.get('taskNum', 0) for item in divtask_list])
+            finish_num = divtask_list and sum([item.get('taskNum', 0) for item in divtask_list]) or 0
             self.login_object.logger.info(f'【{paper_name}】正常卷任务：已完成==>{finish_num},还剩==>{sum(remain_nums)}')
             exam_info['div_alias'] = list(div_alias)
             return exam_info
@@ -225,9 +225,9 @@ class KpMarking:
 
     def run(self):
         exam_data = self.exam_paper_info()
-        # self.submit_normal_score(exam_data)
+        self.submit_normal_score(exam_data)
         # self.submit_thrid_score(exam_data)
-        self.submit_problem_score(exam_data)
+        # self.submit_problem_score(exam_data)
         # self.submit_arbitration_score(exam_data)
 
 
