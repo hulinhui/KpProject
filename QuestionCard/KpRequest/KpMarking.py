@@ -117,7 +117,6 @@ class KpMarking:
 
     def generate_random_score(self, point_item, task_item, score_type=1):
         if not point_item: return
-        encode_no, pjSeq_type, task_id = task_item
         for score_item in point_item.get('scorePoints', []):
             end, step = score_item.get('total_score'), score_item.get('step')
             score_iter = (round(i * step, 1) for i in range(int(end / step) + 2))
@@ -125,7 +124,8 @@ class KpMarking:
             score = 0 if score_type == 0 else random_score if score_type == 1 else end
             self.login_object.logger.info(f'本次评分为：{score}')
             score_item.update({'score': score})
-        point_item.update({'encode': encode_no, 'pjSeq': pjSeq_type, 'taskId': task_id})
+        # 解包更新提交数据所需字段
+        point_item.update(zip(['encode', 'pjSeq', 'taskId'], task_item))
 
     def req_submit_score(self, url, submit_data):
         if not submit_data: return
@@ -187,7 +187,7 @@ class KpMarking:
             while True:
                 self.generate_random_score(submit_data, task_result)
                 self.req_submit_score(self.data['submit_problem_url'], submit_data)
-                time.sleep(5)
+                time.sleep(1)
                 task_result = self.div_reques_task(self.data['problemtask_url'], problem_data, data_type=2)
                 if not any(task_result): break
         self.login_object.logger.info('阅卷结束！')
@@ -205,7 +205,7 @@ class KpMarking:
             while True:
                 self.generate_random_score(submit_data, task_result)
                 self.req_submit_score(self.data['submit_arbitra_url'], submit_data)
-                time.sleep(10)
+                time.sleep(1)
                 task_result = self.div_reques_task(self.data['arbitratask_url'], arbit_data, data_type=2)
                 if not any(task_result): break
         self.login_object.logger.info('阅卷结束！')
