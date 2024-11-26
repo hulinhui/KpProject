@@ -46,7 +46,18 @@ class KpMarking:
             return exam_info
         else:
             self.login_object.logger.info('当前科目暂无阅卷任务')
-            return None
+
+    def get_third_task(self, exam_info):
+        if exam_info:
+            paper_name = exam_info.pop('paper_name')
+            paper_info = exam_info.pop('paper_info')
+            thridtask_list = paper_info.get('threeMarks', [])
+            three_count, unthree_count = paper_info.get('threeCount', 0), paper_info.get('unThreeCount', 0)
+            self.login_object.logger.info(f'【{paper_name}】三评卷任务：已完成==>{three_count},还剩==>{unthree_count}')
+            exam_info['div_alias'] = list(thridtask_list)
+            return exam_info
+        else:
+            self.login_object.logger.info('当前科目暂无阅卷任务')
 
     def query_div_detail(self, div_dict):
         div_url = self.data['divdetail_url']
@@ -62,16 +73,17 @@ class KpMarking:
         else:
             self.login_object.logger.info('获取响应失败!')
 
-    def div_reques_task(self, div_dict):
-        req_url = self.data['reqtask_url']
+    def div_reques_task(self, req_url, div_dict, flag=False):
         req_data = {"data": div_dict}
         req_response = self.login_object.get_response(url=req_url, method='POST', data=req_data)
         result, r_data = self.login_object.check_response(req_response)
         if result:
             t_data = r_data.get("data")
             encode_no = t_data and t_data.get("encode") or None
+            pjSeq_type = t_data and t_data.get("pjSeq") or None
             encode_no is None and self.login_object.logger.info(f"当前题组【{div_dict['itemId']}】暂时无任务")
-            return encode_no
+            return_value = (encode_no, pjSeq_type) if flag else encode_no
+            return return_value
         else:
             error_msg = r_data.get("errorCode") and r_data.get("errorMsg") or '获取响应失败!'
             self.login_object.logger.info(error_msg)
@@ -100,24 +112,45 @@ class KpMarking:
             error_msg = r_data.get("errorCode") and r_data.get("errorMsg") or '获取响应失败!'
             self.login_object.logger.info(error_msg)
 
-    def submit_normal_score(self, div_data):
+    def submit_normal_score(self, exam_data):
+        div_data = self.get_normal_task(exam_data)
         if not div_data: return
         div_alias = div_data.pop('div_alias')
         while div_alias:
             div_data['itemId'] = div_alias.pop(0)
-            encode_no = self.div_reques_task(div_data)
+            reques_result = self.div_reques_task(req_url=self.data['reqtask_url'], div_dict=div_data, flag=True)
+            if not all(reques_result): continue
             self.login_object.logger.info(f"题组【{div_data['itemId']}】开始阅卷")
-            if not encode_no: continue
+            encode_no, pjSeq_type = reques_result
             div_item = self.query_div_detail(div_data)
             while True:
                 if not encode_no: break
-                div_item and div_item.update({'encode': encode_no, 'pjSeq': 2})
+                div_item and div_item.update({'encode': encode_no, 'pjSeq': pjSeq_type})
                 submit_data = self.generate_random_score(div_item)
                 self.req_submit_score(submit_data)
-                time.sleep(0.5)
-                encode_no = self.div_reques_task(div_data)
-        else:
-            self.login_object.logger.info('阅卷结束！')
+                time.sleep(1)
+                encode_no = self.div_reques_task(req_url=self.data['reqtask_url'], div_dict=div_data)
+        self.login_object.logger.info('阅卷结束！')
+
+    def submit_thrid_score(self, exam_data):
+        third_data = self.get_third_task(exam_data)
+        if not third_data: return
+        div_alias = third_data.pop('div_alias')
+        while div_alias:
+            third_data['itemId'] = div_alias.pop(0)
+            reques_result = self.div_reques_task(req_url=self.data['thirdtask_url'], div_dict=third_data, flag=True)
+            if not all(reques_result): continue
+            self.login_object.logger.info(f"题组【{third_data['itemId']}】开始阅卷")
+            encode_no, pjSeq_type = reques_result
+            div_item = self.query_div_detail(third_data)
+            while True:
+                if not encode_no: break
+                div_item and div_item.update({'encode': encode_no, 'pjSeq': pjSeq_type})
+                submit_data = self.generate_random_score(div_item)
+                self.req_submit_score(submit_data)
+                time.sleep(1)
+                encode_no = self.div_reques_task(req_url=self.data['thirdtask_url'], div_dict=third_data)
+        self.login_object.logger.info('阅卷结束！')
 
     def exam_paper_info(self):
         login_info = self.login_object.get_login_token(keys=['orgType', 'userId'])
@@ -134,8 +167,8 @@ class KpMarking:
 
     def run(self):
         exam_data = self.exam_paper_info()
-        exam_div_data = self.get_normal_task(exam_data)
-        self.submit_normal_score(exam_div_data)
+        # self.submit_normal_score(exam_data)
+        self.submit_thrid_score(exam_data)
 
 
 if __name__ == '__main__':
