@@ -115,6 +115,24 @@ class KpMarking:
         else:
             self.login_object.logger.info('当前科目暂无阅卷任务')
 
+    def get_return_task(self, exam_info):
+        """
+        获取打回卷:阅卷完成情况及可需要阅卷的题组
+        :param exam_info: 考试数据
+        :return:
+        """
+        if exam_info:
+            paper_name = exam_info.pop('paper_name')
+            divtask_list = exam_info.pop('paper_info').get('returnTaskList', [])
+            div_alias, remain_nums = divtask_list and list(
+                zip(*[(_['divAlias'], _['remainNum']) for _ in divtask_list if _['remainNum']])) or ([], [])
+            finish_num = divtask_list and sum([item.get('taskNum', 0) for item in divtask_list]) or 0
+            self.login_object.logger.info(f'【{paper_name}】打回卷任务：已完成==>{finish_num},还剩==>{sum(remain_nums)}')
+            exam_info['div_alias'] = list(div_alias)
+            return exam_info
+        else:
+            self.login_object.logger.info('当前科目暂无阅卷任务')
+
     def query_div_detail(self, div_dict):
         """
         获取题组的给分点信息
@@ -144,11 +162,13 @@ class KpMarking:
         :param data_type: 传参类型（1：正常卷和三评卷；2：问题卷与仲裁卷）
         :return:考生密号、卷类型、任务id 组成的元祖
         """
-        req_data = {"data": div_dict} if data_type == 1 else div_dict
+        req_data = {"data": div_dict} if data_type == 1 else div_dict \
+            if data_type == 2 else dict(**div_dict, **{"pageSize": 1, "state": 0})
         req_response = self.login_object.get_response(url=req_url, method='POST', data=req_data)
         result, r_data = self.login_object.check_response(req_response)
         if result:
-            t_data = r_data.get("data")
+            t_data = r_data.get("data").get('list') or r_data.get("data")
+            t_data = t_data[0] if isinstance(t_data, list) else t_data
             encode_no = t_data and t_data.get("encode") or None
             pjSeq_type = t_data and t_data.get("pjSeq") or None
             task_id = t_data and t_data.get("taskId") or None
@@ -182,11 +202,11 @@ class KpMarking:
         """
         提交给分
         :param url: 提交给分的url
-        :param submit_data: 提交给分的请求参数
+        :param submit_data: 提交给分的请求参数(打回卷不传data)
         :return:
         """
         if not submit_data: return
-        normal_data = {"data": submit_data}
+        normal_data = {"data": submit_data} if url.find('return') == -1 else submit_data
         normal_response = self.login_object.get_response(url=url, method='POST', data=normal_data)
         result, r_data = self.login_object.check_response(normal_response)
         if result:
@@ -304,16 +324,40 @@ class KpMarking:
                 if not any(task_result): break
         self.login_object.logger.info('阅卷结束！')
 
+    def submit_return_score(self, exam_data):
+        """
+        打回卷给分
+        :param exam_data: 考试数据
+        :return:
+        """
+        return_data = self.get_return_task(exam_data)
+        if not return_data: return
+        div_alias = return_data.pop('div_alias')
+        while div_alias:
+            return_data['itemId'] = div_alias.pop(0)
+            task_result = self.div_reques_task(self.data['return_url'], return_data, data_type=2)
+            if not any(task_result): continue
+            self.login_object.logger.info(f"题组【{return_data['itemId']}】开始阅卷")
+            submit_data = self.query_div_detail(return_data)
+            while True:
+                self.generate_random_score(submit_data, task_result)
+                self.req_submit_score(self.data['submit_return_url'], submit_data)
+                time.sleep(1)
+                task_result = self.div_reques_task(self.data['return_url'], return_data, data_type=2)
+                if not any(task_result): break
+        self.login_object.logger.info('阅卷结束！')
+
     def run(self):
         """
         主流程
         :return:
         """
         exam_data = self.exam_paper_info()
-        self.submit_normal_score(exam_data)
-        self.submit_thrid_score(exam_data)
-        self.submit_problem_score(exam_data)
-        self.submit_arbitration_score(exam_data)
+        # self.submit_normal_score(exam_data)
+        # self.submit_thrid_score(exam_data)
+        # self.submit_problem_score(exam_data)
+        # self.submit_arbitration_score(exam_data)
+        self.submit_return_score(exam_data)
 
 
 if __name__ == '__main__':
