@@ -162,8 +162,7 @@ class KpMarking:
         :param data_type: 传参类型（1：正常卷和三评卷；2：问题卷与仲裁卷）
         :return:考生密号、卷类型、任务id 组成的元祖
         """
-        req_data = {"data": div_dict} if data_type == 1 else div_dict \
-            if data_type == 2 else dict(**div_dict, **{"pageSize": 1, "state": 0})
+        req_data = {"data": div_dict} if data_type == 1 else div_dict
         req_response = self.login_object.get_response(url=req_url, method='POST', data=req_data)
         result, r_data = self.login_object.check_response(req_response)
         if result:
