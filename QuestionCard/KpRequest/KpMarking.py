@@ -46,92 +46,43 @@ class KpMarking:
         else:
             self.login_object.logger.info('获取响应失败!')
 
-    def get_normal_task(self, exam_info):
+    @staticmethod
+    def get_volume_info(volume_type):
         """
-        获取正常卷：阅卷完成情况及可需要阅卷的题组
-        :param exam_info: 考试数据
+        根据卷的类型返回相关卷的获取字段
+        :param volume_type: 卷的类型
         :return:
         """
-        if exam_info:
-            paper_name = exam_info.pop('paper_name')
-            divtask_list = exam_info.pop('paper_info').get('taskList', [])
-            div_alias, remain_nums = divtask_list and list(
-                zip(*[(_['divAlias'], _['remainNum']) for _ in divtask_list if _['remainNum']])) or ([], [])
-            finish_num = divtask_list and sum([item.get('taskNum', 0) for item in divtask_list]) or 0
-            self.login_object.logger.info(f'【{paper_name}】正常卷任务：已完成==>{finish_num},还剩==>{sum(remain_nums)}')
-            exam_info['div_alias'] = list(div_alias)
-            return exam_info
-        else:
-            self.login_object.logger.info('当前科目暂无阅卷任务')
+        point_item = {
+            1: ('正常卷', 'taskList', None, None),
+            2: ('三评卷', 'threeMarks', 'threeCount', 'unThreeCount'),
+            3: ('问题卷', 'unProblemGroups', 'problemCount', 'unProblemTotal'),
+            4: ('仲裁卷', 'unArbitrationGroups', 'arbitrationCount', 'unArbitrationTotal'),
+            5: ('打回卷', 'returnTaskList', None, None)
+        }
+        return point_item.get(volume_type, '输入的阅卷类型有误')
 
-    def get_third_task(self, exam_info):
+    def get_general_task(self, exam_info, volume_type):
         """
-        获取三评卷：阅卷完成情况及可需要阅卷的题组
-        :param exam_info: 考试数据
+        根据卷的类型获取对应任务信息
+        :param exam_info: 考试信息
+        :param volume_type: 卷的类型
         :return:
         """
-        if exam_info:
-            paper_name = exam_info.pop('paper_name')
-            paper_info = exam_info.pop('paper_info')
-            thridtask_list = paper_info.get('threeMarks', [])
-            three_count, unthree_count = paper_info.get('threeCount', 0), paper_info.get('unThreeCount', 0)
-            self.login_object.logger.info(f'【{paper_name}】三评卷任务：已完成==>{three_count},还剩==>{unthree_count}')
-            exam_info['div_alias'] = list(thridtask_list)
-            return exam_info
-        else:
-            self.login_object.logger.info('当前科目暂无阅卷任务')
-
-    def get_problem_task(self, exam_info):
-        """
-        获取问题卷：阅卷完成情况及可需要阅卷的题组
-        :param exam_info: 考试数据
-        :return:
-        """
-        if exam_info:
-            paper_name = exam_info.pop('paper_name')
-            paper_info = exam_info.pop('paper_info')
-            unProblemGroups = paper_info.get('unProblemGroups', {})
-            problem_count, unproblem_count = paper_info.get('problemCount', 0), paper_info.get('unProblemTotal', 0)
-            self.login_object.logger.info(f'【{paper_name}】问题卷任务：已完成==>{problem_count},还剩==>{unproblem_count}')
-            exam_info['div_alias'] = list(unProblemGroups.keys())
-            return exam_info
-        else:
-            self.login_object.logger.info('当前科目暂无阅卷任务')
-
-    def get_arbitration_task(self, exam_info):
-        """
-        获取仲裁卷：阅卷完成情况及可需要阅卷的题组
-        :param exam_info: 考试数据
-        :return:
-        """
-        if exam_info:
-            paper_name = exam_info.pop('paper_name')
-            paper_info = exam_info.pop('paper_info')
-            unArbitrationGroups = paper_info.get('unArbitrationGroups', {})
-            arbit_count, unarbit_count = paper_info.get('arbitrationCount', 0), paper_info.get('unArbitrationTotal', 0)
-            self.login_object.logger.info(f'【{paper_name}】仲裁卷任务：已完成==>{arbit_count},还剩==>{unarbit_count}')
-            exam_info['div_alias'] = list(unArbitrationGroups.keys())
-            return exam_info
-        else:
-            self.login_object.logger.info('当前科目暂无阅卷任务')
-
-    def get_return_task(self, exam_info):
-        """
-        获取打回卷:阅卷完成情况及可需要阅卷的题组
-        :param exam_info: 考试数据
-        :return:
-        """
-        if exam_info:
-            paper_name = exam_info.pop('paper_name')
-            divtask_list = exam_info.pop('paper_info').get('returnTaskList', [])
-            div_alias, remain_nums = divtask_list and list(
-                zip(*[(_['divAlias'], _['remainNum']) for _ in divtask_list if _['remainNum']])) or ([], [])
-            finish_num = divtask_list and sum([item.get('taskNum', 0) for item in divtask_list]) or 0
-            self.login_object.logger.info(f'【{paper_name}】打回卷任务：已完成==>{finish_num},还剩==>{sum(remain_nums)}')
-            exam_info['div_alias'] = list(div_alias)
-            return exam_info
-        else:
-            self.login_object.logger.info('当前科目暂无阅卷任务')
+        if not exam_info: self.login_object.logger.info('当前科目暂无阅卷任务'); return
+        p_name, paper_info = exam_info.pop('paper_name'), exam_info.pop('paper_info')
+        vol_name, vol_path, vol_field, vol_unfield = self.get_volume_info(volume_type)
+        finish_num, remain_num, div_alias, vol_data = 0, 0, [], paper_info.get(vol_path)
+        if volume_type in [1, 5]:
+            if vol_data is not None:
+                div_alias, remains = list(zip(*[(_['divAlias'], _['remainNum']) for _ in vol_data if _['remainNum']]))
+                finish_num, remain_num = sum([item.get('taskNum', 0) for item in vol_data]), sum(remains)
+        if volume_type in [2, 3, 4]:
+            finish_num, remain_num = paper_info.get(vol_field), paper_info.get(vol_unfield)
+            div_alias = vol_data.keys() if isinstance(vol_data, dict) else vol_data
+        exam_info['div_alias'] = list(div_alias)
+        self.login_object.logger.info(f'【{p_name}】{vol_name}任务：已完成==>{finish_num},还剩==>{remain_num}')
+        return exam_info
 
     def query_div_detail(self, div_dict):
         """
@@ -166,8 +117,8 @@ class KpMarking:
         req_response = self.login_object.get_response(url=req_url, method='POST', data=req_data)
         result, r_data = self.login_object.check_response(req_response)
         if result:
-            t_data = r_data.get("data").get('list') or r_data.get("data")
-            t_data = t_data[0] if isinstance(t_data, list) else t_data
+            d_data = (r_data.get("data") or {}).get("list", r_data.get("data"))
+            t_data = d_data[0] if d_data and isinstance(d_data, list) else d_data
             encode_no = t_data and t_data.get("encode") or None
             pjSeq_type = t_data and t_data.get("pjSeq") or None
             task_id = t_data and t_data.get("taskId") or None
@@ -237,7 +188,7 @@ class KpMarking:
         :param exam_data: 考试数据
         :return:
         """
-        div_data = self.get_normal_task(exam_data)
+        div_data = self.get_general_task(exam_data, volume_type=1)
         if not div_data: return
         div_alias = div_data.pop('div_alias')
         while div_alias:
@@ -260,7 +211,7 @@ class KpMarking:
         :param exam_data: 考试数据
         :return:
         """
-        third_data = self.get_third_task(exam_data)
+        third_data = self.get_general_task(exam_data, volume_type=2)
         if not third_data: return
         div_alias = third_data.pop('div_alias')
         while div_alias:
@@ -283,7 +234,7 @@ class KpMarking:
         :param exam_data: 考试数据
         :return:
         """
-        problem_data = self.get_problem_task(exam_data)
+        problem_data = self.get_general_task(exam_data, volume_type=3)
         if not problem_data: return
         div_alias = problem_data.pop('div_alias')
         while div_alias:
@@ -306,7 +257,7 @@ class KpMarking:
         :param exam_data: 考试数据
         :return:
         """
-        arbit_data = self.get_arbitration_task(exam_data)
+        arbit_data = self.get_general_task(exam_data, volume_type=4)
         if not arbit_data: return
         div_alias = arbit_data.pop('div_alias')
         while div_alias:
@@ -329,7 +280,7 @@ class KpMarking:
         :param exam_data: 考试数据
         :return:
         """
-        return_data = self.get_return_task(exam_data)
+        return_data = self.get_general_task(exam_data, volume_type=5)
         if not return_data: return
         div_alias = return_data.pop('div_alias')
         while div_alias:
@@ -352,10 +303,10 @@ class KpMarking:
         :return:
         """
         exam_data = self.exam_paper_info()
-        # self.submit_normal_score(exam_data)
-        # self.submit_thrid_score(exam_data)
-        # self.submit_problem_score(exam_data)
-        # self.submit_arbitration_score(exam_data)
+        self.submit_normal_score(exam_data)
+        self.submit_thrid_score(exam_data)
+        self.submit_problem_score(exam_data)
+        self.submit_arbitration_score(exam_data)
         self.submit_return_score(exam_data)
 
 
