@@ -81,13 +81,14 @@ class KpMarking:
         finish_num, remain_num, div_alias, vol_data = 0, 0, [], paper_info.get(vol_path)
         if vol_type in [1, 5]:
             if vol_data is not None:
-                div_alias, rems, tas = list(zip(*[(_['divAlias'], _['remainNum'], _['taskNum']) for _ in vol_data]))
-                finish_num, remain_num = sum(tas), sum(rems)
+                remain_nums, finish_nums = list(zip(*[(_['remainNum'], _['taskNum']) for _ in vol_data]))
+                div_alias = [_['divAlias'] for _ in vol_data if _['remainNum'] > 0]
+                finish_num, remain_num = sum(finish_nums), sum(remain_nums)
         if vol_type in [2, 3, 4]:
+            div_alias = list(vol_data.keys()) if isinstance(vol_data, dict) else vol_data
             finish_num, remain_num = paper_info.get(vol_field), paper_info.get(vol_unfield)
-            div_alias = vol_data.keys() if isinstance(vol_data, dict) else vol_data
-        exam_info['div_alias'] = remain_num and list(div_alias) or []
-        remain_num and self.logger.info(f'【{p_name}】{vol_name}任务：已完成==>{finish_num},还剩==>{remain_num}')
+        exam_info['div_alias'] = div_alias
+        self.logger.info(f'【{p_name}】{vol_name}任务：已完成==>{finish_num},还剩==>{remain_num}')
         return exam_info
 
     def query_div_detail(self, div_dict):
