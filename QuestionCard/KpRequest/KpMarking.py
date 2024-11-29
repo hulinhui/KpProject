@@ -87,6 +87,7 @@ class KpMarking:
         if vol_type in [2, 3, 4]:
             div_alias = list(vol_data.keys()) if isinstance(vol_data, dict) else vol_data
             finish_num, remain_num = paper_info.get(vol_field), paper_info.get(vol_unfield)
+            div_alias = div_alias if remain_num > 0 else []
         exam_info['div_alias'] = div_alias
         self.logger.info(f'【{p_name}】{vol_name}任务：已完成==>{finish_num},还剩==>{remain_num}')
         return exam_info
