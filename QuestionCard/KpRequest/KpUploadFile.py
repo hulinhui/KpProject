@@ -12,6 +12,11 @@ class KpUploadFile:
         self.upload_type = self._check_type(up_type)
 
     def _check_type(self, up_type):
+        """
+        检查上传类型合法性
+        :param up_type: 上传类型
+        :return: 合法的上传类型
+        """
         if not isinstance(up_type, str):
             raise TypeError(f'Type of {up_type} is not str')
         if up_type not in self.up_list:
@@ -19,6 +24,12 @@ class KpUploadFile:
         return up_type
 
     def get_exam_data(self, exam, org_id):
+        """
+        生成上传文件所需参数
+        :param exam: 考试模块对象
+        :param org_id: 机构id
+        :return: 上传接口参数
+        """
         upload_data = None
         exam_id = exam.search_exam(org_id)
         if not exam_id: return upload_data
@@ -78,6 +89,10 @@ class KpUploadFile:
             self.logger.info(f'上传成功!')
 
     def run(self):
+        """
+        上传文件
+        :return:
+        """
         # 登录
         org_id = self.login.get_login_token()
         # 获取上传接口所需data
