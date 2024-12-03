@@ -80,7 +80,7 @@ class KpMarking:
         vol_type, vol_name, vol_path, vol_field, vol_unfield, *_ = volume_list
         finish_num, remain_num, div_alias, vol_data = 0, 0, [], paper_info.get(vol_path)
         if vol_type in [1, 5]:
-            if vol_data is not None:
+            if vol_data:
                 remain_nums, finish_nums = list(zip(*[(_['remainNum'], _['taskNum']) for _ in vol_data]))
                 div_alias = [_['divAlias'] for _ in vol_data if _['remainNum'] > 0]
                 finish_num, remain_num = sum(finish_nums), sum(remain_nums)
