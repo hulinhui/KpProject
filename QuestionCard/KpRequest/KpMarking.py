@@ -181,6 +181,7 @@ class KpMarking:
         :return: dict
         """
         login_info = self.login_object.get_login_token(keys=['orgType', 'userId'])
+        if login_info is None: exit()
         exam_id = self.query_task_examid(*login_info)
         if not exam_id: self.logger.info('获取exam_id参数有误');return
         paper_info = self.query_task_paper(exam_id)
