@@ -14,7 +14,7 @@ from email.mime.text import MIMEText
 import requests
 
 
-def read_config(name):
+def read_config(name=None):
     item_infos = {}
     config = RawConfigParser()
     dir_name = os.path.dirname(os.path.abspath(__file__))
@@ -26,7 +26,8 @@ def read_config(name):
         item_infos[sec] = {}
         for key, value in config.items(sec):
             item_infos[sec][key] = value
-    return item_infos[name]
+    item_info = item_infos if name is None else item_infos[name]
+    return item_info
 
 
 def get_sign_stamp(webhook_secret):
