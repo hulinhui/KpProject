@@ -50,7 +50,6 @@ class KpLogin:
             response.encoding = 'utf-8'
             return response
         except Exception as e:
-            print(e)
             self.logger.info(e)
 
     @staticmethod
