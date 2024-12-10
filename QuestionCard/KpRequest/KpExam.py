@@ -1,7 +1,181 @@
+import time
+
+
 class KpExam:
     def __init__(self, l_object):
         self.login_object = l_object
         self.data = self.login_object.kp_data
+        self.logger = self.login_object.logger
+
+    def create_org_data(self):
+        key_list = ['orgType', 'orgNo', 'orgName', 'orgLevel']
+        value_names = self.login_object.get_login_token(key_list)
+        key_names = ['orgId'] + key_list[:-1] + ['examLevel']
+        org_item = dict(zip(key_names, value_names))
+        return org_item
+
+    @staticmethod
+    def name_cover_code(grade_name):
+        """
+        获取学阶代码及年级代码
+        学阶code：1、小学 2、初中 3、高中
+        年级code：1-9（一到9年级）、10-12（高一、高二、高三）
+        :param grade_name:
+        :return: step_index，grade_index
+        """
+        cover_func = lambda cn: {'一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6,
+                                 '七': 7, '八': 8, '九': 9}.get(cn, 0)
+        if len(grade_name) >= 3:
+            grade_int = cover_func(grade_name[0])
+            if grade_int <= 6:
+                step_index = 1
+            else:
+                step_index = 2
+            grade_index = grade_int
+        else:
+            step_index = 3
+            grade_index = 9 + cover_func(grade_name[1])
+        return str(step_index), str(grade_index)
+
+    def get_grade(self, orgid):
+        """
+        获取年级id、学阶id
+        :param orgid: 机构信息item
+        :return: 年级代码，年级信息item
+        """
+        grade_name = self.data['e_grade_name']
+        step_code, grade_code = self.name_cover_code(grade_name)
+        grade_url = self.login_object.kp_data['grade_url']
+        grade_data = {"data": {"orgId": orgid, "includeGrades": 'true'}}
+        grade_resp = self.login_object.get_response(grade_url, method='POST', data=grade_data)
+        result, data = self.login_object.check_response(grade_resp)
+        if result:
+            grade_list = [(grade['id'], step_item['id']) for step_item in data['data'] if step_item['code'] == step_code
+                          for grade in step_item['grades'] if grade['code'] == grade_code]
+            grade_id, step_id = grade_list[0]
+            grade_item = {'gradeId': grade_id, 'gradeLevelIds': [step_id], 'orgId': orgid}
+            return int(grade_code), grade_item
+        else:
+            self.logger.warning('响应数据有误')
+            return None, None
+
+    def exam_map_info(self, org_type):
+        key_tuple = org_type, self.data['e_model'], self.data['e_numtype'], self.data['e_type'], self.data['e_source']
+        info_item = {
+            'orgFlag': {1: '联考', 2: '校内考'},
+            'examModel': {'普通': 0, '文理分科': 3, '3+1+2新高考': 2, '3+3新高考': 1},
+            'numType': {'准考证号': 0, '学号': 1, '学生账号后8位': 2},
+            'examType': {'周测': 'WEEKLY_EXAM', '单元': 'UNIT_EXAM', '月考': 'MONTHLY_EXAM', '期中': 'MID_TERM_EXAM',
+                         '期末': 'FINAL_EXAM', '模拟': 'MOCK_EXAM', '其他': 'OTHERS_EXAM'},
+            'stuSource': {'基础信息': 0, '临时考生': 1}
+        }
+        value_list = [item.get(key) for item, key in zip(info_item.values(), key_tuple)]
+        return value_list
+
+    def create_basic_data(self, org_item):
+        org_id, org_type = org_item['orgId'], org_item['orgType']
+        edate = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
+        edate_str = edate.translate(str.maketrans('', '', '-: '))
+        grade_code, grade_item = self.get_grade(org_id)
+        emap_info = self.exam_map_info(org_type)
+        exam_item = {"examDate": edate, "examGrade": grade_code, "examModel": emap_info[1], "stuSource": emap_info[4],
+                     "examName": f"{emap_info[0] + edate_str}", "examType": emap_info[3], "numType": emap_info[2]}
+        exam_item.update(**org_item, **{'gradeinfo': grade_item})
+        return exam_item
+
+    def query_grade_subject(self, grade_item, sub_count=20):
+        subject_url = self.data['subject_url']
+        subject_data = {'data': grade_item, 'pageSize': sub_count, 'pageNum': 1}
+        subject_response = self.login_object.get_response(url=subject_url, method='POST', data=subject_data)
+        result, r_data = self.login_object.check_response(subject_response)
+        if result:
+            data = r_data and r_data.get('data') or None
+            return data
+        else:
+            self.logger.info('获取响应失败!')
+
+    def query_edu_schools(self, grade_item):
+        name_list = self.data['school_name'].split(',')
+        school_url = self.data['school_edu_url']
+        school_data = {"eduId": grade_item['orgId'], "type": "3", "stepId": grade_item['gradeLevelIds'][0]}
+        school_resp = self.login_object.get_response(school_url, method='POST', data=school_data)
+        result, data = self.login_object.check_response(school_resp)
+        if result:
+            school_list = [(school_item['id'], school_item['name']) for school_item in data['data'] if
+                           school_item['name'] in name_list]
+            return school_list
+        else:
+            self.logger.warning('响应数据有误')
+
+    def new_class_subject(self, subject_item, sub_count=20, cls_count=20):
+        class_url = self.data['new_class']
+        class_response = self.login_object.get_response(url=class_url, method='POST', data=subject_item)
+        result, r_data = self.login_object.check_response(class_response)
+        if result:
+            sub_data = r_data and r_data.get('data') or None
+            schoolList = [{'subjectId': i['subjectId'], 'school_list': [
+                {'schoolId': j['schoolId'], 'schoolName': j['schoolName'],
+                 'classList': [{'schoolId': j['schoolId'], 'schoolName': j['schoolName'], 'classType': 1, **c} for c in
+                               j['classList'][:cls_count]]} for j in i['schoolList']]} for i in sub_data[:sub_count]]
+            return schoolList
+        else:
+            self.logger.info('获取响应失败!')
+
+    def old_class_subject(self, subject_item, cls_count=20):
+        class_url = self.data['old_class']
+        class_data = {'data': subject_item, 'pageSize': cls_count, 'pageNum': 1}
+        class_response = self.login_object.get_response(url=class_url, method='POST', data=class_data)
+        result, r_data = self.login_object.check_response(class_response)
+        if result:
+            data = r_data and r_data.get('data') or None
+            return data
+        else:
+            self.logger.info('获取响应失败!')
+
+    def get_subject_class(self, b_item):
+        emodel, otype, oid, oname = b_item['examModel'], b_item['orgType'], b_item['orgId'], b_item['orgName']
+        g_item = b_item.pop('gradeinfo')
+        schoolinfos = [(oid, oname)] if otype == 2 else self.query_edu_schools(g_item)
+        if emodel > 0:
+            schoolIds = [_[0] for _ in schoolinfos]
+            subject_item = {'modelType': str(emodel), 'gradeId': g_item['gradeId'], 'schoolIds': schoolIds}
+            schoolList = self.new_class_subject(subject_item, sub_count=3, cls_count=1)
+        else:
+            g_item['gradeLevelId'] = g_item.pop('gradeLevelIds')[0]
+            subject_item = g_item | {'classType': 1}
+            class_list = self.old_class_subject(subject_item, cls_count=1) if otype == 2 else []
+            schoolList = [{'schoolId': _[0], 'schoolName': _[1], 'classList': class_list} for _ in schoolinfos]
+        return schoolList
+
+    def create_papers_data(self, exam_item):
+        grade_item, emodel = exam_item.get('gradeinfo'), exam_item['examModel']
+        subject_list = self.query_grade_subject(grade_item, sub_count=3)
+        grade_item['subjectId'] = subject_list[0]['subjectId']
+        schoolList = self.get_subject_class(exam_item)
+        school_item = schoolList if emodel else [{'subjectId': subject['subjectId'], 'school_list': schoolList} for
+                                                 subject in subject_list]
+        paper_list = [
+            {'paperName': s['subjectName'], 'scannerList': [], 'schoolList': c['school_list'], 'subjectList': [s]} for s
+            in subject_list for c in school_item if s['subjectId'] == c['subjectId']]
+        exam_item['papers'] = paper_list
+
+    def generate_exam(self, create_data):
+        create_url = self.data['create_exam_url']
+        create_exam_resp = self.login_object.get_response(url=create_url, method='POST', data=create_data)
+        result, r_data = self.login_object.check_response(create_exam_resp)
+        if result:
+            exam_id = r_data.get("data") or None
+            return exam_id
+        else:
+            self.logger.info('获取响应失败!')
+
+    def create_exam(self):
+        org_item = self.create_org_data()
+        exam_item = self.create_basic_data(org_item)
+        self.create_papers_data(exam_item)
+        exam_id = self.generate_exam(exam_item)
+        print(exam_id)
+        self.del_exam(exam_id)
 
     def search_exam(self, orgid):
         """
@@ -20,7 +194,7 @@ class KpExam:
             exam_id = data and data[0]['examId'] or None
             return exam_id
         else:
-            self.login_object.logger.info('获取响应失败!')
+            self.logger.info('获取响应失败!')
 
     def search_paper(self, exam_id, org_id):
         """
@@ -41,7 +215,7 @@ class KpExam:
             exam_info = paper_list and {'examId': exam_id, 'paperId': paper_list[0]} or None
             return exam_info
         else:
-            self.login_object.logger.info('获取响应失败!')
+            self.logger.info('获取响应失败!')
 
     def exam_detail(self, exam_id):
         """
@@ -59,7 +233,17 @@ class KpExam:
             school_ids = ','.join([item['schoolId'] for item in r_data['data']['papers'][0]['schoolList']])
             return {'examId': exam_id, 'gradeId': grade_id, 'schoolIds': school_ids, 'modelType': exam_type}
         else:
-            self.login_object.logger.info('获取响应失败!')
+            self.logger.info('获取响应失败!')
+
+    def del_exam(self, exam_id):
+        del_url = self.data['delexam_url']
+        del_data = {'data': {'examId': exam_id, 'userRoleCodes': ['ROLE_ORG_MANAGER']}}
+        del_response = self.login_object.get_response(url=del_url, method='POST', data=del_data)
+        result, r_data = self.login_object.check_response(del_response)
+        if result:
+            self.logger.info('考试删除成功!')
+        else:
+            self.logger.info('获取响应失败!')
 
     def exam_remark(self, remark_data):
         """
@@ -71,9 +255,9 @@ class KpExam:
         remark_response = self.login_object.get_response(url=remark_url, method='POST', data=remark_data)
         result, r_data = self.login_object.check_response(remark_response)
         if result:
-            self.login_object.logger.info('全卷重评成功！')
+            self.logger.info('全卷重评成功！')
         else:
-            self.login_object.logger.info('获取响应失败!')
+            self.logger.info('获取响应失败!')
 
     def exam_marking(self, marking_data, valid):
         """
@@ -88,9 +272,9 @@ class KpExam:
         result, r_data = self.login_object.check_response(remark_response)
         if result:
             status = '暂停' if valid == 9 else '恢复'
-            self.login_object.logger.info(f'全卷{status}成功！')
+            self.logger.info(f'全卷{status}成功！')
         else:
-            self.login_object.logger.info('获取响应失败!')
+            self.logger.info('获取响应失败!')
 
     def get_exam_info(self, org_id):
         exam_id = self.search_exam(org_id)
@@ -109,7 +293,7 @@ class KpExam:
             # 全卷重评
             self.exam_remark(exam_info)
         else:
-            self.login_object.logger.info('考试信息数据获取有误!')
+            self.logger.info('考试信息数据获取有误!')
 
 
 if __name__ == '__main__':
@@ -117,4 +301,4 @@ if __name__ == '__main__':
 
     kp_login = KpLogin()
     ke = KpExam(kp_login)
-    ke.run()
+    ke.create_exam()

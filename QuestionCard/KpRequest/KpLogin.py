@@ -70,6 +70,7 @@ class KpLogin:
     def get_org_info(self, data, keys):
         """
         判断当前账号是否存在多个机构，单个机构直接返回机构信息，多个机构根据配置信息-学校名称返回机构信息
+        :param keys: 获取登录所需字段
         :param data: 当前账号登录的默认机构
         :return: org_info （机构名，机构id）
         """
@@ -123,12 +124,12 @@ class KpLogin:
         self.headers['Authorization'] = f"Bearer {data.get('access_token')}"
         self.headers['Content-Type'] = get_content_text()
         info_list = self.get_org_info(data, keys)
-        info_list and self.logger.info(f"用户-{info_list[0]}:登录成功!")
-        info_data = info_list and info_list[1] if len(info_list) == 2 else info_list[1:]
+        info_list and self.logger.info(f"用户-{info_list.pop(0)}:登录成功!")
+        info_data = info_list and info_list[0] if len(info_list) == 1 else info_list
         return info_data
 
 
 if __name__ == '__main__':
     student = KpLogin()
-    aa = student.get_login_token()
+    aa = student.get_login_token(keys=['orgType','orgNo','orgName','orgLevel'])
     print(aa)
