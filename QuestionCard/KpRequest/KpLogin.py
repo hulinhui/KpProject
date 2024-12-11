@@ -19,13 +19,13 @@ class KpLogin:
         self.kp_data = read_config('KP')
         self.logger = HandleLog()
 
-    def init_headers(self):
+    def init_headers(self, format_str=None):
         """
         初始化请求头，请求头设置域名及默认表单模式，生成初始请求头
         :return:
         """
         self.domain = [self.kp_data[key] for key in self.kp_data.keys() if key.startswith(self.kp_data['env_flag'])][0]
-        header_item = {'Host': urlparse(self.domain).hostname, 'Content-Type': get_content_text('form')}
+        header_item = {'Host': urlparse(self.domain).hostname, 'Content-Type': get_content_text(format_str)}
         headers = get_format_headers(headers_kp, **header_item)
         return headers
 
@@ -67,20 +67,44 @@ class KpLogin:
         else:
             return result, json_data
 
-    def get_org_info(self, data, keys):
-        """
-        判断当前账号是否存在多个机构，单个机构直接返回机构信息，多个机构根据配置信息-学校名称返回机构信息
-        :param keys: 获取登录所需字段
-        :param data: 当前账号登录的默认机构
-        :return: org_info （机构名，机构id）
-        """
-        user_data = data.get('data')
-        valid_account_num = sum(1 for _ in user_data['users'] if _.get('companyEnable'))
-        org_info = self.change_account(
-            user_data) if valid_account_num > 1 else user_data if valid_account_num == 1 else (
-                self.logger.info('当前账号无有效的机构！') or None)
-        info_list = [org_info[key] for key in ['name', 'orgId'] + (keys or [])] if org_info else None
-        return info_list
+    def create_login_data(self, login_type='token'):
+        kp_token, r_data = self.kp_data.get('kp_token'), None
+        self.headers = self.init_headers()
+        if login_type == 'token' and kp_token:
+            self.headers['Authorization'] = f"Bearer {kp_token}"
+            r_data = self.get_user_info()
+        if r_data is None:
+            r_data = self.account_login()
+        return r_data
+
+    def get_user_info(self):
+        uinfo_url = self.kp_data['userinfo_url']
+        uinfo_resp = self.get_response(url=uinfo_url, method='GET')
+        result, r_data = self.check_response(uinfo_resp)
+        if result:
+            data = r_data and r_data.get('data') or None
+            if data is None: return data
+            data['users'] = [_ for _ in data['users'] if _['companyId'] == data['orgId']]
+            return data
+        else:
+            error_msg = r_data.get("errorCode") and r_data.get("errorMsg") or '获取响应失败!'
+            self.logger.info(error_msg)
+
+    def account_login(self):
+        self.headers['Content-Type'] = get_content_text('from')
+        login_url = self.kp_data['login_url']
+        login_item = {'username': self.kp_data['username'], 'password': self.kp_data['passwd'],
+                      'randomStr': '38716_1518792598512', 'code': 'ep3e',
+                      'verCode': '', 'grant_type': 'password', 'scope': 'server', 'encrypted': 'false'}
+        login_resp = self.get_response(login_url, method='POST', data=dict_cover_data(login_item))
+        result, r_data = self.check_response(login_resp)
+        if result:
+            self.headers['Authorization'] = f"Bearer {r_data.get('access_token')}"
+            self.headers['Content-Type'] = get_content_text()
+            data = r_data and r_data.get('data') or None
+            return data
+        else:
+            self.logger.info('用户登录失败')
 
     def change_account(self, a_data):
         """
@@ -106,24 +130,27 @@ class KpLogin:
         else:
             self.logger.info('响应数据有误')
 
+    def get_org_info(self, data, keys):
+        """
+        判断当前账号是否存在多个机构，单个机构直接返回机构信息，多个机构根据配置信息-学校名称返回机构信息
+        :param keys: 获取登录所需字段
+        :param data: 当前账号登录的默认机构
+        :return: org_info （机构名，机构id）
+        """
+        valid_account_num = sum(1 for _ in data['users'] if _.get('companyEnable'))
+        org_info = self.change_account(data) if valid_account_num > 1 else data if valid_account_num == 1 else (
+                self.logger.info('当前账号无有效的机构！') or None)
+        info_list = [org_info[key] for key in ['name', 'orgId'] + (keys or [])] if org_info else None
+        return info_list
+
     def get_login_token(self, keys=None):
         """
-        登录
+        登录:
         :return: org_id  机构id
         """
-        login_url = self.kp_data['login_url']
-        login_item = {'username': self.kp_data['username'], 'password': self.kp_data['passwd'],
-                      'randomStr': '38716_1518792598512', 'code': 'ep3e',
-                      'verCode': '', 'grant_type': 'password', 'scope': 'server', 'encrypted': 'false'}
-        self.headers = self.init_headers()
-        login_resp = self.get_response(login_url, method='POST', data=dict_cover_data(login_item))
-        result, data = self.check_response(login_resp)
-        if not result:
-            self.logger.info('用户登录失败')
-            return
-        self.headers['Authorization'] = f"Bearer {data.get('access_token')}"
-        self.headers['Content-Type'] = get_content_text()
-        info_list = self.get_org_info(data, keys)
+        account_data = self.create_login_data(login_type='token')
+        if not account_data: return
+        info_list = self.get_org_info(account_data, keys)
         info_list and self.logger.info(f"用户-{info_list.pop(0)}:登录成功!")
         info_data = info_list and info_list[0] if len(info_list) == 1 else info_list
         return info_data
@@ -131,5 +158,5 @@ class KpLogin:
 
 if __name__ == '__main__':
     student = KpLogin()
-    aa = student.get_login_token(keys=['orgType','orgNo','orgName','orgLevel'])
+    aa = student.get_login_token(keys=['orgType', 'orgNo', 'orgName', 'orgLevel'])
     print(aa)
