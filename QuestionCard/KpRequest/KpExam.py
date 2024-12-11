@@ -8,6 +8,10 @@ class KpExam:
         self.logger = self.login_object.logger
 
     def create_org_data(self):
+        """
+        生成考试所需的机构信息
+        :return: org_item 机构信息item
+        """
         key_list = ['orgType', 'orgNo', 'orgName', 'orgLevel']
         value_names = self.login_object.get_login_token(key_list)
         key_names = ['orgId'] + key_list[:-1] + ['examLevel']
@@ -40,8 +44,8 @@ class KpExam:
     def get_grade(self, orgid):
         """
         获取年级id、学阶id
-        :param orgid: 机构信息item
-        :return: 年级代码，年级信息item
+        :param orgid: 机构id
+        :return: 年级代码，年级信息item（包含年级id、学阶id、机构id）
         """
         grade_name = self.data['e_grade_name']
         step_code, grade_code = self.name_cover_code(grade_name)
@@ -60,6 +64,11 @@ class KpExam:
             return None, None
 
     def exam_map_info(self, org_type):
+        """
+        根据名称映射到传参对应字段
+        :param org_type: 机构类型（教育局还是单校）
+        :return: value_list 所需传参的列表
+        """
         key_tuple = org_type, self.data['e_model'], self.data['e_numtype'], self.data['e_type'], self.data['e_source']
         info_item = {
             'orgFlag': {1: '联考', 2: '校内考'},
@@ -70,9 +79,15 @@ class KpExam:
             'stuSource': {'基础信息': 0, '临时考生': 1}
         }
         value_list = [item.get(key) for item, key in zip(info_item.values(), key_tuple)]
+        if org_type == 2: value_list[-1] = 0
         return value_list
 
     def create_basic_data(self, org_item):
+        """
+        生成考试所需的考试信息，包含机构信息
+        :param org_item: 机构信息字典
+        :return: exam_item 返回包含机构信息的字典数据
+        """
         org_id, org_type = org_item['orgId'], org_item['orgType']
         edate = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
         edate_str = edate.translate(str.maketrans('', '', '-: '))
@@ -81,9 +96,16 @@ class KpExam:
         exam_item = {"examDate": edate, "examGrade": grade_code, "examModel": emap_info[1], "stuSource": emap_info[4],
                      "examName": f"{emap_info[0] + edate_str}", "examType": emap_info[3], "numType": emap_info[2]}
         exam_item.update(**org_item, **{'gradeinfo': grade_item})
+        exam_item['add_record'] = True if self.data['e_from'] == '补录' else None
         return exam_item
 
     def query_grade_subject(self, grade_item, sub_count=20):
+        """
+        查询年级科目
+        :param grade_item: 年级所需参数
+        :param sub_count: 获取科目数量[前n科]
+        :return: data 科目数据列表
+        """
         subject_url = self.data['subject_url']
         subject_data = {'data': grade_item, 'pageSize': sub_count, 'pageNum': 1}
         subject_response = self.login_object.get_response(url=subject_url, method='POST', data=subject_data)
@@ -95,6 +117,11 @@ class KpExam:
             self.logger.info('获取响应失败!')
 
     def query_edu_schools(self, grade_item):
+        """
+        教育局查询学校
+        :param grade_item: 查询参数
+        :return: school_list 包含学校id、学校名称的列表
+        """
         name_list = self.data['school_name'].split(',')
         school_url = self.data['school_edu_url']
         school_data = {"eduId": grade_item['orgId'], "type": "3", "stepId": grade_item['gradeLevelIds'][0]}
@@ -108,6 +135,13 @@ class KpExam:
             self.logger.warning('响应数据有误')
 
     def new_class_subject(self, subject_item, sub_count=20, cls_count=20):
+        """
+        新高考模式查询班级
+        :param subject_item: 查询传参
+        :param sub_count: 获取科目数量[前n科]
+        :param cls_count: 获取班级数量[前n班]
+        :return: schoolList 学校班级数据
+        """
         class_url = self.data['new_class']
         class_response = self.login_object.get_response(url=class_url, method='POST', data=subject_item)
         result, r_data = self.login_object.check_response(class_response)
@@ -122,6 +156,12 @@ class KpExam:
             self.logger.info('获取响应失败!')
 
     def old_class_subject(self, subject_item, cls_count=20):
+        """
+        普通模式查询班级
+        :param subject_item: 科目传参
+        :param cls_count: 获取班级数量[前n班]
+        :return: data 学校班级数据
+        """
         class_url = self.data['old_class']
         class_data = {'data': subject_item, 'pageSize': cls_count, 'pageNum': 1}
         class_response = self.login_object.get_response(url=class_url, method='POST', data=class_data)
@@ -132,34 +172,52 @@ class KpExam:
         else:
             self.logger.info('获取响应失败!')
 
-    def get_subject_class(self, b_item):
+    def get_subject_class(self, b_item, sub_count, cls_count):
+        """
+        查询科目对应的班级信息及人数
+        :param b_item: 考试所需参数item
+        :param sub_count: 科目数[前n科]
+        :param cls_count: 班级数[前n班]
+        :return: schoolList 学校相关数据列表
+        """
         emodel, otype, oid, oname = b_item['examModel'], b_item['orgType'], b_item['orgId'], b_item['orgName']
         g_item = b_item.pop('gradeinfo')
         schoolinfos = [(oid, oname)] if otype == 2 else self.query_edu_schools(g_item)
         if emodel > 0:
             schoolIds = [_[0] for _ in schoolinfos]
             subject_item = {'modelType': str(emodel), 'gradeId': g_item['gradeId'], 'schoolIds': schoolIds}
-            schoolList = self.new_class_subject(subject_item, sub_count=3, cls_count=1)
+            schoolList = self.new_class_subject(subject_item, sub_count=sub_count, cls_count=cls_count)
         else:
             g_item['gradeLevelId'] = g_item.pop('gradeLevelIds')[0]
             subject_item = g_item | {'classType': 1}
-            class_list = self.old_class_subject(subject_item, cls_count=1) if otype == 2 else []
+            class_list = self.old_class_subject(subject_item, cls_count=cls_count) if otype == 2 else []
             schoolList = [{'schoolId': _[0], 'schoolName': _[1], 'classList': class_list} for _ in schoolinfos]
         return schoolList
 
     def create_papers_data(self, exam_item):
-        grade_item, emodel = exam_item.get('gradeinfo'), exam_item['examModel']
-        subject_list = self.query_grade_subject(grade_item, sub_count=3)
+        """
+        生成考试的papers数据
+        :param exam_item: 考试所需参数item
+        :return: None
+        """
+        grade_item, emodel, add_record = exam_item['gradeinfo'], exam_item['examModel'], exam_item.pop('add_record')
+        s_count, c_count = int(self.data['s_num']), int(self.data['c_num'])
+        subject_list = self.query_grade_subject(grade_item, sub_count=s_count)
         grade_item['subjectId'] = subject_list[0]['subjectId']
-        schoolList = self.get_subject_class(exam_item)
+        schoolList = self.get_subject_class(exam_item, sub_count=s_count, cls_count=c_count)
         school_item = schoolList if emodel else [{'subjectId': subject['subjectId'], 'school_list': schoolList} for
                                                  subject in subject_list]
-        paper_list = [
-            {'paperName': s['subjectName'], 'scannerList': [], 'schoolList': c['school_list'], 'subjectList': [s]} for s
-            in subject_list for c in school_item if s['subjectId'] == c['subjectId']]
+        paper_list = [{'inputRecord': add_record, 'paperName': s['subjectName'], 'scannerList': [],
+                       'schoolList': c['school_list'], 'subjectList': [s]} for s in subject_list for c in school_item if
+                      s['subjectId'] == c['subjectId']]
         exam_item['papers'] = paper_list
 
     def generate_exam(self, create_data):
+        """
+        创建考试
+        :param create_data: 创建考试data
+        :return: exam_id 考试id
+        """
         create_url = self.data['create_exam_url']
         create_exam_resp = self.login_object.get_response(url=create_url, method='POST', data=create_data)
         result, r_data = self.login_object.check_response(create_exam_resp)
@@ -170,12 +228,19 @@ class KpExam:
             self.logger.info('获取响应失败!')
 
     def create_exam(self):
+        """
+        1、生成考试所需的机构信息（crate_org_data）
+        2、生成考试所需的考试信息（create_basic_data）
+        3、生成考试所需的papers信息（create_papers_data）
+        4、创建考试（generate_exam）
+        :return:
+        """
         org_item = self.create_org_data()
         exam_item = self.create_basic_data(org_item)
         self.create_papers_data(exam_item)
         exam_id = self.generate_exam(exam_item)
         print(exam_id)
-        self.del_exam(exam_id)
+        # self.del_exam(exam_id)
 
     def search_exam(self, orgid):
         """
@@ -236,6 +301,7 @@ class KpExam:
             self.logger.info('获取响应失败!')
 
     def del_exam(self, exam_id):
+        self.login_object.get_login_token()
         del_url = self.data['delexam_url']
         del_data = {'data': {'examId': exam_id, 'userRoleCodes': ['ROLE_ORG_MANAGER']}}
         del_response = self.login_object.get_response(url=del_url, method='POST', data=del_data)
