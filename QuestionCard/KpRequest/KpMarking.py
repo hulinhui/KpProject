@@ -1,6 +1,4 @@
-import copy
 import random
-import time
 
 
 class KpMarking:
@@ -8,6 +6,7 @@ class KpMarking:
         self.login_object = l_object
         self.data = self.login_object.kp_data
         self.logger = self.login_object.logger
+        self.count = 0
 
     def query_task_examid(self, orgid, orgtype, userid):
         """
@@ -68,13 +67,14 @@ class KpMarking:
         volume_datas.insert(0, volume_type)
         return volume_datas
 
-    def get_general_task(self, exam_info, volume_list):
+    def get_general_task(self, exam_data, volume_list):
         """
         根据卷的类型获取对应任务信息
-        :param exam_info: 考试信息
+        :param exam_data: 考试信息
         :param volume_list: 卷相关参数列表
         :return:
         """
+        exam_info = {**exam_data} if exam_data else None
         if not exam_info: self.logger.info('当前科目暂无阅卷任务'); return
         p_name, paper_info = exam_info.pop('paper_name'), exam_info.pop('paper_info')
         vol_type, vol_name, vol_path, vol_field, vol_unfield, *_ = volume_list
@@ -170,6 +170,7 @@ class KpMarking:
         normal_response = self.login_object.get_response(url=url, method='POST', data=normal_data)
         result, r_data = self.login_object.check_response(normal_response)
         if result:
+            self.count += 1
             self.logger.info('提交分数成功！')
         else:
             error_msg = r_data.get("errorCode") and r_data.get("errorMsg") or '获取响应失败!'
@@ -208,7 +209,6 @@ class KpMarking:
             while True:
                 self.generate_random_score(submit_data, task_result)
                 self.req_submit_score(submit_url, submit_data)
-                time.sleep(1)
                 task_result = self.div_reques_task(task_url, question_item, vol_type=volume_type)
                 if not any(task_result): break
         self.logger.info(f'【{vol_name}】阅卷结束！')
@@ -221,10 +221,11 @@ class KpMarking:
         exam_data = self.exam_paper_info()
         for _ in range(1, 6):
             volume_info = self.get_volume_info(_)
-            item = self.get_general_task(copy.deepcopy(exam_data), volume_info)
-            if not item.get('div_alias'):
+            item = self.get_general_task(exam_data, volume_info)
+            if not (item and item.get('div_alias')):
                 continue
             self.submit_general_score(item, volume_info)
+        print(self.count)
 
 
 if __name__ == '__main__':
