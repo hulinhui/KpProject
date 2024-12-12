@@ -2,7 +2,7 @@ import urllib3
 from urllib3.exceptions import InsecureRequestWarning
 from QuestionCard.KpRequest.Handle_Logger import HandleLog
 from QuestionCard.KpRequest.FormatHeaders import get_format_headers, headers_kp, dict_cover_data, get_content_text
-from QuestionCard.KpRequest.NotifyMessage import read_config
+from QuestionCard.KpRequest.NotifyMessage import read_config, write_config
 from urllib.parse import urlparse
 import json
 import time
@@ -16,7 +16,9 @@ class KpLogin:
     def __init__(self):
         self.domain = None
         self.headers = None
-        self.kp_data = read_config('KP')
+        self.kp_data = read_config(name='KP')
+        self.token_data = read_config(filename='token.ini')
+        self.write_text = {}
         self.logger = HandleLog()
 
     def init_headers(self, format_str=None):
@@ -67,11 +69,12 @@ class KpLogin:
         else:
             return result, json_data
 
-    def create_login_data(self, login_type='token'):
-        kp_token, r_data = self.kp_data.get('kp_token'), None
+    def create_login_data(self, org_name, login_type='token'):
+        kp_token, user_name, r_data = self.token_data.get(org_name), self.kp_data['user_name'], None
+        token = kp_token and kp_token.get(user_name) or None
         self.headers = self.init_headers()
-        if login_type == 'token' and kp_token:
-            self.headers['Authorization'] = f"Bearer {kp_token}"
+        if login_type == 'token' and token:
+            self.headers['Authorization'] = token
             r_data = self.get_user_info()
         if r_data is None:
             r_data = self.account_login()
@@ -93,13 +96,14 @@ class KpLogin:
     def account_login(self):
         self.headers['Content-Type'] = get_content_text('from')
         login_url = self.kp_data['login_url']
-        login_item = {'username': self.kp_data['username'], 'password': self.kp_data['passwd'],
+        login_item = {'username': self.kp_data['phone'], 'password': self.kp_data['passwd'],
                       'randomStr': '38716_1518792598512', 'code': 'ep3e',
                       'verCode': '', 'grant_type': 'password', 'scope': 'server', 'encrypted': 'false'}
         login_resp = self.get_response(login_url, method='POST', data=dict_cover_data(login_item))
         result, r_data = self.check_response(login_resp)
         if result:
-            self.headers['Authorization'] = f"Bearer {r_data.get('access_token')}"
+            token = r_data.get('access_token')
+            self.headers['Authorization'] = f"Bearer {token}"
             self.headers['Content-Type'] = get_content_text()
             data = r_data and r_data.get('data') or None
             return data
@@ -148,10 +152,14 @@ class KpLogin:
         登录:
         :return: org_id  机构id
         """
-        account_data = self.create_login_data(login_type='token')
+        org_name = self.kp_data['org_name']
+        account_data = self.create_login_data(org_name, login_type='token')
         if not account_data: return
         info_list = self.get_org_info(account_data, keys)
-        info_list and self.logger.info(f"用户-{info_list.pop(0)}:登录成功!")
+        user_name = info_list and info_list.pop(0)
+        info_list and self.logger.info(f"用户-{user_name}:登录成功!")
+        self.write_text[org_name] = {user_name: self.headers['Authorization']}
+        write_config(self.write_text)
         info_data = info_list and info_list[0] if len(info_list) == 1 else info_list
         return info_data
 
