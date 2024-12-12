@@ -70,6 +70,12 @@ class KpLogin:
             return result, json_data
 
     def create_login_data(self, org_name, login_type='token'):
+        """
+        判断token登录还是账密登录，返回登录数据（默认token登录）
+        :param org_name: 机构名称，查询机构下的token
+        :param login_type: 登录类型（token还是账密）
+        :return: r_data 登录信息
+        """
         kp_token, user_name, r_data = self.token_data.get(org_name), self.kp_data['user_name'], None
         token = kp_token and kp_token.get(user_name) or None
         self.headers = self.init_headers()
@@ -81,6 +87,10 @@ class KpLogin:
         return r_data
 
     def get_user_info(self):
+        """
+        获取当前用户信息
+        :return: data 登录信息
+        """
         uinfo_url = self.kp_data['userinfo_url']
         uinfo_resp = self.get_response(url=uinfo_url, method='GET')
         result, r_data = self.check_response(uinfo_resp)
@@ -94,6 +104,10 @@ class KpLogin:
             self.logger.info(error_msg)
 
     def account_login(self):
+        """
+        账号密码登录
+        :return: data 登录信息
+        """
         self.headers['Content-Type'] = get_content_text('from')
         login_url = self.kp_data['login_url']
         login_item = {'username': self.kp_data['phone'], 'password': self.kp_data['passwd'],
