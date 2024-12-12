@@ -12,7 +12,7 @@ class KpExam:
         生成考试所需的机构信息
         :return: org_item 机构信息item
         """
-        key_list = ['orgType', 'orgNo', 'orgName', 'orgLevel']
+        key_list = ['orgType', 'orgNo', 'orgName', 'mobile', 'userId', 'name', 'orgLevel']
         value_names = self.login_object.get_login_token(key_list)
         key_names = ['orgId'] + key_list[:-1] + ['examLevel']
         org_item = dict(zip(key_names, value_names))
@@ -96,7 +96,7 @@ class KpExam:
         exam_item = {"examDate": edate, "examGrade": grade_code, "examModel": emap_info[1], "stuSource": emap_info[4],
                      "examName": f"{emap_info[0] + edate_str}", "examType": emap_info[3], "numType": emap_info[2]}
         exam_item.update(**org_item, **{'gradeinfo': grade_item})
-        exam_item['add_record'] = True if self.data['e_from'] == '补录' else None
+        exam_item['add_red'] = True if self.data['e_from'] == '补录' else None
         return exam_item
 
     def query_grade_subject(self, grade_item, sub_count=20):
@@ -200,16 +200,18 @@ class KpExam:
         :param exam_item: 考试所需参数item
         :return: None
         """
-        grade_item, emodel, add_record = exam_item['gradeinfo'], exam_item['examModel'], exam_item.pop('add_record')
+        g, e, i, n = exam_item['gradeinfo'], exam_item['examModel'], exam_item['orgId'], exam_item['orgName']
+        a, b, c, d = exam_item.pop('mobile'), exam_item.pop('userId'), exam_item.pop('name'), exam_item.pop('add_red')
         s_count, c_count = int(self.data['s_num']), int(self.data['c_num'])
-        subject_list = self.query_grade_subject(grade_item, sub_count=s_count)
-        grade_item['subjectId'] = subject_list[0]['subjectId']
+        subject_list = self.query_grade_subject(g, sub_count=s_count)
+        g['subjectId'] = subject_list[0]['subjectId']
         schoolList = self.get_subject_class(exam_item, sub_count=s_count, cls_count=c_count)
-        school_item = schoolList if emodel else [{'subjectId': subject['subjectId'], 'school_list': schoolList} for
-                                                 subject in subject_list]
-        paper_list = [{'inputRecord': add_record, 'paperName': s['subjectName'], 'scannerList': [],
-                       'schoolList': c['school_list'], 'subjectList': [s]} for s in subject_list for c in school_item if
-                      s['subjectId'] == c['subjectId']]
+        school_item = schoolList if e else [{'subjectId': subject['subjectId'], 'school_list': schoolList} for
+                                            subject in subject_list]
+        scanner_list = [{"isAdmin": 2, "mobile": a, "orgId": i, "orgName": n, "teacherId": b, "teacherName": c}]
+        paper_list = [{'inputRecord': d, 'paperName': s['subjectName'], 'scannerList': scanner_list,
+                       'schoolList': v['school_list'], 'subjectList': [s]} for s in subject_list for v in school_item if
+                      s['subjectId'] == v['subjectId']]
         exam_item['papers'] = paper_list
 
     def generate_exam(self, create_data):
