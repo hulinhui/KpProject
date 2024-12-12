@@ -14,13 +14,12 @@ from email.mime.text import MIMEText
 import requests
 
 
-def read_config(name=None):
+def read_config(filename='notify.ini', name=None):
     item_infos = {}
     config = RawConfigParser()
-    dir_name = os.path.dirname(os.path.abspath(__file__))
-    file_path = os.path.join(dir_name, 'notify.ini')
-    if not os.path.exists(file_path):
-        pathlib.Path(file_path).touch()  # 创建文件
+    dir_name = pathlib.Path(__file__).parent
+    file_path = dir_name / filename
+    file_path.touch(exist_ok=True)
     config.read(file_path, encoding='utf-8')
     for sec in config.sections():
         item_infos[sec] = {}
@@ -28,6 +27,21 @@ def read_config(name=None):
             item_infos[sec][key] = value
     item_info = item_infos if name is None else item_infos[name]
     return item_info
+
+
+def write_config(config_data,filename='token.ini'):
+    config = RawConfigParser()
+    dir_name = pathlib.Path(__file__).parent
+    file_path = dir_name / filename
+    file_path.touch(exist_ok=True)
+    config.read(file_path, encoding='utf-8')
+    for section, keys in config_data.items():
+        if not config.has_section(section):
+            config.add_section(section)
+        for key, value in keys.items():
+            config.set(section, key, value)
+    with open(filename, 'w', encoding='utf-8') as file:
+        config.write(file)
 
 
 def get_sign_stamp(webhook_secret):
@@ -211,4 +225,8 @@ if __name__ == '__main__':
     # send_qmsg()
     # send_telegram()
     # send_pushplus('测试天气消息')
-    sendWechat()
+    # sendWechat()
+    write_config('token.ini', config_data={
+        'ee': {'accountId': '223172681238607600072', 'userId': '223172681238607400070', 'companyName': '胡林辉一校'}})
+    data = read_config('token.ini')
+    print(data)
