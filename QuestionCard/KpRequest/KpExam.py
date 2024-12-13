@@ -200,8 +200,8 @@ class KpExam:
         :param exam_item: 考试所需参数item
         :return: None
         """
-        g, e, i, n = exam_item['gradeinfo'], exam_item['examModel'], exam_item['orgId'], exam_item['orgName']
-        a, b, c, d = exam_item.pop('mobile'), exam_item.pop('userId'), exam_item.pop('name'), exam_item.pop('add_red')
+        g, e, i, n = [exam_item[key] for key in ['gradeinfo', 'examModel', 'orgId', 'orgName']]
+        a, b, c, d = [exam_item.pop(key) for key in ['mobile', 'userId', 'name', 'add_red']]
         s_count, c_count = int(self.data['s_num']), int(self.data['c_num'])
         subject_list = self.query_grade_subject(g, sub_count=s_count)
         g['subjectId'] = subject_list[0]['subjectId']
