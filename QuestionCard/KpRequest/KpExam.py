@@ -327,6 +327,28 @@ class KpExam:
         else:
             self.logger.info('获取响应失败!')
 
+    def exam_questionlist(self, exam_info, que_name):
+        question_url = self.data['quegroup_url']
+        question_params = {'paperId': exam_info.get('paperId')}
+        question_response = self.login_object.get_response(url=question_url, method='GET', params=question_params)
+        result, r_data = self.login_object.check_response(question_response)
+        if result and r_data and 'data' in r_data:
+            divIds = [item.get('id') for item in r_data['data'] if item.get('questionGroupAlias') == que_name]
+            divId = divIds[0] if divIds else None
+            return divId
+        else:
+            self.logger.info('获取响应失败!')
+
+    def exam_divremark(self, exam_info, div_id):
+        divremark_url = self.data['divremark_url']
+        divremark_data = {'paperId': exam_info.get('paperId'), 'divId': div_id}
+        divremark_response = self.login_object.get_response(url=divremark_url, method='POST', data=divremark_data)
+        result, r_data = self.login_object.check_response(divremark_response)
+        if result:
+            self.logger.info(f'题组id【{div_id}】重评成功！')
+        else:
+            self.logger.info('获取响应失败!')
+
     def exam_marking(self, marking_data, valid):
         """
         全卷暂停或全卷恢复
@@ -358,8 +380,10 @@ class KpExam:
         if exam_info is not None:
             # 全卷恢复或暂停
             # self.exam_marking(exam_info, 1)
+            divId = self.exam_questionlist(exam_info, '20')
+            self.exam_divremark(exam_info, divId)
             # 全卷重评
-            self.exam_remark(exam_info)
+            # self.exam_remark(exam_info)
         else:
             self.logger.info('考试信息数据获取有误!')
 
@@ -369,4 +393,4 @@ if __name__ == '__main__':
 
     kp_login = KpLogin()
     ke = KpExam(kp_login)
-    ke.create_exam()
+    ke.run()
