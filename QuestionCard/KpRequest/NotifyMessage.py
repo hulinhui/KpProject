@@ -29,7 +29,7 @@ def read_config(filename='notify.ini', name=None):
     return item_info
 
 
-def write_config(config_data,filename='token.ini'):
+def write_config(config_data,filename):
     config = RawConfigParser()
     dir_name = pathlib.Path(__file__).parent
     file_path = dir_name / filename
@@ -225,8 +225,5 @@ if __name__ == '__main__':
     # send_qmsg()
     # send_telegram()
     # send_pushplus('测试天气消息')
-    # sendWechat()
-    write_config('token.ini', config_data={
-        'ee': {'accountId': '223172681238607600072', 'userId': '223172681238607400070', 'companyName': '胡林辉一校'}})
-    data = read_config('token.ini')
-    print(data)
+    sendWechat()
+
