@@ -76,13 +76,13 @@ class KpLogin:
         :param login_type: 登录类型（token还是账密）
         :return: r_data 登录信息
         """
-        kp_token, user_name, r_data = self.token_data.get(org_name), self.kp_data['user_name'], None
-        token = kp_token and kp_token.get(user_name) or None
+        kp_token, user_name = self.token_data.get(org_name), self.kp_data['user_name']
+        token = kp_token.get(user_name) if kp_token else None
         self.headers = self.init_headers()
         if login_type == 'token' and token:
             self.headers['Authorization'] = token
-            r_data = self.get_user_info()
-        if r_data is None:
+            r_data = self.get_user_info() or self.account_login()
+        else:
             r_data = self.account_login()
         return r_data
 
@@ -96,7 +96,7 @@ class KpLogin:
         result, r_data = self.check_response(uinfo_resp)
         if result:
             data = r_data and r_data.get('data') or None
-            if data is None: return data
+            if not data: return None
             data['users'] = [_ for _ in data['users'] if _['companyId'] == data['orgId']]
             return data
         else:
@@ -130,21 +130,17 @@ class KpLogin:
         :param a_data: 机构数据
         :return: org_info
         """
-        org_name = self.kp_data['org_name']
-        account_info = [user for user in a_data['users'] if
-                        user.get('companyEnable') and user.get('companyName') == org_name]
-        if not account_info:
-            self.logger.info(f'机构-{org_name}：没找到!')
-            return
-        user_url = self.kp_data['user_url']
-        user_data = {'accountId': a_data['accountId'], 'randomStr': int(time.time() * 1000),
-                     **{key: account_info[0][key] for key in ('userType', 'userId')}}
+        org_name, user_url = self.kp_data['org_name'], self.kp_data['user_url'],
+        account_info = [u for u in a_data['users'] if u.get('companyEnable') and u.get('companyName') == org_name]
+        if not account_info: self.logger.info(f'机构-{org_name}：没找到!');return
+        u_item = {key: account_info[0][key] for key in ('userType', 'userId')}
+        user_data = {'accountId': a_data['accountId'], 'randomStr': int(time.time() * 1000)} | u_item
         user_resp = self.get_response(user_url, method='POST', data=user_data)
-        result, data = self.check_response(user_resp)
+        result, r_data = self.check_response(user_resp)
         if result:
-            self.headers['Authorization'] = f"Bearer {data['data']['accessToken']}"
-            return data['data']
-            # return data['data']['name'], data['data']['orgId'], data['data']['orgType'], data['data']['userId']
+            data = r_data and r_data.get('data') or None
+            if data: self.headers['Authorization'] = f"Bearer {data['accessToken']}"
+            return data
         else:
             self.logger.info('响应数据有误')
 
@@ -156,10 +152,12 @@ class KpLogin:
         :return: org_info （机构名，机构id）
         """
         valid_account_num = sum(1 for _ in data['users'] if _.get('companyEnable'))
-        org_info = self.change_account(data) if valid_account_num > 1 else data if valid_account_num == 1 else (
-                self.logger.info('当前账号无有效的机构！') or None)
-        info_list = [org_info[key] for key in ['name', 'orgId'] + (keys or [])] if org_info else None
-        return info_list
+        org_info = (
+            self.change_account(data) if valid_account_num > 1 else
+            data if valid_account_num == 1 else
+            (self.logger.info('当前账号无有效的机构！') or None)
+        )
+        return [org_info.get(key) for key in ['name', 'orgId', *(keys or [])]] if org_info else None
 
     def get_login_token(self, keys=None):
         """
@@ -173,7 +171,7 @@ class KpLogin:
         user_name = info_list and info_list.pop(0)
         info_list and self.logger.info(f"用户-{user_name}:登录成功!")
         self.write_text[org_name] = {user_name: self.headers['Authorization']}
-        write_config(self.write_text)
+        write_config(self.write_text, filename='token.ini')
         info_data = info_list and info_list[0] if len(info_list) == 1 else info_list
         return info_data
 
