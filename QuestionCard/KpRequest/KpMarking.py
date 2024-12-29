@@ -137,6 +137,24 @@ class KpMarking:
             self.logger.info(error_msg)
             return (result,)
 
+    def div_batch_task(self, q_item):
+        """
+        批量获取正常卷任务，默认5个
+        :param q_item: 考试信息
+        :return: 列表套元祖的考生encode
+        """
+        batch_task_url = self.data['batchtask_url']
+        batch_data = {'paperId': q_item['paperId'], 'itemId': q_item['itemId'], "batchNum": 5, "pjSeq": 1}
+        batch_response = self.login_object.get_response(url=batch_task_url, method='POST', data=batch_data)
+        result, r_data = self.login_object.check_response(batch_response)
+        if result:
+            encode_list = [(_['encode'], _['pjSeq'], _['taskId']) for _ in r_data.get("data")]
+            return encode_list
+        else:
+            error_msg = r_data.get("errorCode") and r_data.get("errorMsg") or '获取响应失败!'
+            self.logger.info(error_msg)
+            return []
+
     def generate_random_score(self, point_item, task_tuple, score_type=1):
         """
         生成每个给分点的分数，并组成完整提交给分的参数
@@ -172,6 +190,24 @@ class KpMarking:
         if result:
             self.count += 1
             self.logger.info('提交分数成功！')
+        else:
+            error_msg = r_data.get("errorCode") and r_data.get("errorMsg") or '获取响应失败!'
+            self.logger.info(error_msg)
+
+    def req_submit_problem(self, url, submit_data):
+        """
+        提交问题卷
+        :param url: 提交问题卷的url
+        :param submit_data: 提交问题卷的请求参数
+        :return:
+        """
+        if not submit_data: return
+        normal_data = {"data": submit_data | {"problemType": "0", "problemDesc": ""}}
+        normal_response = self.login_object.get_response(url=url, method='POST', data=normal_data)
+        result, r_data = self.login_object.check_response(normal_response)
+        if result:
+            self.count += 1
+            self.logger.info('提交问题卷成功！')
         else:
             error_msg = r_data.get("errorCode") and r_data.get("errorMsg") or '获取响应失败!'
             self.logger.info(error_msg)
@@ -212,23 +248,27 @@ class KpMarking:
                 if not any(task_result): break
         self.logger.info(f'【{vol_name}】阅卷结束！')
 
-    def get_batch_task(self, q_item):
+    def submit_problem_paper(self, question_item, volume_list):
         """
-        批量获取正常卷任务，默认5个
-        :param q_item: 考试信息
-        :return: 列表套元祖的考生encode
+        提交问题卷
+        :param question_item: 阅卷数据
+        :param volume_list: 卷相关参数列表
+        :return:
         """
-        batch_task_url = self.data['batchtask_url']
-        batch_data = {'paperId': q_item['paperId'], 'itemId': q_item['itemId'], "batchNum": 5, "pjSeq": 1}
-        batch_response = self.login_object.get_response(url=batch_task_url, method='POST', data=batch_data)
-        result, r_data = self.login_object.check_response(batch_response)
-        if result:
-            encode_list = [(_['encode'], _['pjSeq'], _['taskId']) for _ in r_data.get("data")]
-            return encode_list
-        else:
-            error_msg = r_data.get("errorCode") and r_data.get("errorMsg") or '获取响应失败!'
-            self.logger.info(error_msg)
-            return []
+        volume_list.append(self.data['problem_paper_url'])
+        volume_type, vol_name, *_, task_url, _, problem_paper_url = volume_list
+        div_alias = question_item.pop('div_alias')
+        while div_alias:
+            question_item['itemId'] = div_alias.pop(0)
+            task_result = self.div_reques_task(task_url, question_item, vol_type=volume_type)
+            if not any(task_result): continue
+            self.logger.info(f"题组【{question_item['itemId']}】开始阅卷")
+            while True:
+                submit_data = {**question_item} | dict(zip(['encode', 'pjSeq', 'taskId'], task_result))
+                self.req_submit_problem(url=problem_paper_url, submit_data=submit_data)
+                task_result = self.div_reques_task(task_url, question_item, vol_type=volume_type)
+                if not any(task_result): break
+        self.logger.info(f"本次总共评分次数:{self.count}")
 
     def submit_preload_score(self, question_item, volume_list):
         """
@@ -243,7 +283,7 @@ class KpMarking:
         self.logger.info(f"当前科目有({div_str})等{div_num}个题组需要阅卷")
         question_item['itemId'] = div_alias[0]
         while div_alias:
-            encode_list = self.get_batch_task(question_item)
+            encode_list = self.div_batch_task(question_item)
             submit_data = self.query_div_detail(question_item)
             while encode_list:
                 encode_info = encode_list.pop(0)
@@ -260,7 +300,15 @@ class KpMarking:
             self.div_reques_task(task_url, question_item, vol_type=volume_type)
         self.logger.info(f"本次总共评分次数:{self.count}")
 
-    def preload_normal(self):
+    def problem_normal_paper(self):
+        exam_data = self.exam_paper_info()
+        volume_info = self.get_volume_info(volume_type=1)
+        item = self.get_general_task(exam_data, volume_info)
+        if not (item and item.get('div_alias')):
+            return
+        self.submit_problem_paper(item, volume_info)
+
+    def preload_normal_score(self):
         """
         正常卷预加载模式
         :return:
@@ -274,7 +322,7 @@ class KpMarking:
 
     def run(self):
         """
-        主流程
+        全阅卷主流程
         :return:
         """
         exam_data = self.exam_paper_info()
@@ -292,4 +340,4 @@ if __name__ == '__main__':
 
     kp_login = KpLogin()
     km = KpMarking(kp_login)
-    km.preload_normal()
+    km.problem_normal_paper()
