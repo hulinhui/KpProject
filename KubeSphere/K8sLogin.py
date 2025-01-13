@@ -3,14 +3,14 @@ import json
 import re
 from QuestionCard.KpRequest.Handle_Logger import HandleLog
 from QuestionCard.KpRequest.NotifyMessage import read_config
-from QuestionCard.KpRequest.FormatHeaders import get_format_headers, headers_k8s
+from QuestionCard.KpRequest.FormatHeaders import get_format_headers, headers_k8s, get_content_text
 import requests
 from urllib.parse import quote
 
 
 class K8sLogin:
     def __init__(self):
-        self.config = read_config('KUBESPHERE')
+        self.config = read_config(name='KUBESPHERE')
         self.domain = self.config['test_domain']
         self.logger = HandleLog()
         self.headers = get_format_headers(headers_k8s)
@@ -36,19 +36,17 @@ class K8sLogin:
             self.logger.info(e)
 
     @staticmethod
-    def check_response(response, return_value=None):
+    def check_response(response, key='items'):
         """
         处理响应内容，进行响应结果判断
+        :param key:
         :param response: 请求响应对象
-        :param return_value: 是否返回响应json数据，默认返回
         :return: result, json_data
         """
         json_data = {} if response is None else response.json()
-        result = json_data['result'] if json_data and 'result' in json_data else False
-        if return_value is not None:
-            return result
-        else:
-            return result, json_data
+        result = json_data['totalItems'] if json_data and 'totalItems' in json_data else False
+        key_data = json_data.get(key, []) if result else []
+        return key_data
 
     def get_login_salt(self, url):
         """
@@ -104,6 +102,7 @@ class K8sLogin:
         :return: None
         """
         login_data = f"username={self.config['account']}&encrypt={quote(encrypt_text)}"
+        self.headers['Content-Type'] = get_content_text(flag=True)
         resposne = self.get_response(url, method='POST', data=login_data)
         if resposne:
             self.logger.info('KubeSpere登录成功!')
@@ -126,7 +125,84 @@ class K8sLogin:
         encrypt_text = self.encrypt_pwd(salt_text)
         self.login_send(login_url, encrypt_text)
 
+    def users(self):
+        user_url = self.config['user_url']
+        user_resp = self.get_response(user_url, method='GET')
+        result, r_data = self.check_response(user_resp)
+        print(r_data)
+        if result:
+            print(r_data)
+        else:
+            self.logger.warning('获取数据失败!')
+
+    def run_pipe(self, dev_id, p_info):
+        p_name, p_parameters = p_info
+        run_url = self.config['run_url'].format(dev_id, p_name)
+        run_data = {"parameters": p_parameters}
+        run_resp = self.get_response(url=run_url, method='POST', data=run_data)
+        r_data = {} if run_resp is None else run_resp.json()
+        if r_data:
+            self.logger.info(f"{p_name}:运行成功！--->序号为：{r_data['id']}")
+        else:
+            self.logger.warning(f'{p_name}:运行失败')
+
+    def get_issuer_params(self):
+        issuer_url = self.config['issuer_url']
+        issuer_resp = self.get_response(issuer_url, method='GET')
+        r_data = {} if issuer_resp is None else issuer_resp.json()
+        params_data = {r_data['crumbRequestField']: r_data['crumb']} if r_data else {}
+        return params_data
+
+    def get_pipelines(self, devops_id):
+        pipe_url, pipe_names = self.config['pipe_url'], self.config['pipe_name'].split(',')
+        pipe_reparams = {'start': 0, 'limit': 20,
+                         'q': f'type:pipeline;organization:jenkins;pipeline:{devops_id}/*;excludedFromFlattening'
+                              f':jenkins.branch.MultiBranchProject,hudson.matrix.MatrixProject&filter=no-folders'}
+        pipe_resp = self.get_response(pipe_url, method='GET', params=pipe_reparams)
+        json_data = {} if pipe_resp is None else pipe_resp.json()
+        pipe_items = json_data.get('items', [])
+        filtered_items = [item for item in pipe_items if item['name'] in pipe_names]
+        pipe_params = [[{k: str(v) for k, v in param['defaultParameterValue'].items() if k != '_class'} for param in
+                        items['parameters']] for items in filtered_items]
+        pipe_names = [item['name'] for item in filtered_items]
+        pipe_info = dict(zip(pipe_names, pipe_params))
+        return pipe_info
+
+    def get_devops_id(self, ws_name):
+        dev_url, dev_names = self.config['dev_url'].format(ws_name), self.config['dev_name'].split(',')
+        dev_resp = self.get_response(dev_url, method='GET')
+        r_data = self.check_response(response=dev_resp)
+        dev_ids = [i['metadata']['name'] for i in r_data if
+                   i['metadata']['annotations']['kubesphere.io/alias-name'] in dev_names] if r_data else []
+        return dev_ids
+
+    def get_workspaces(self, ws_name):
+        ws_url = self.config['ws_url']
+        self.headers['Content-Type'] = get_content_text()
+        ws_resp = self.get_response(ws_url, method='GET')
+        r_data = self.check_response(response=ws_resp)
+        exist_flag = bool(r_data) and any(_['metadata']['name'] == ws_name for _ in r_data)
+        return exist_flag
+
+    def run(self):
+        cookies_str = self.headers.get('Cookie', None)
+        if not cookies_str: self.login()
+        ws_name = self.config['ws_name']
+        if not self.get_workspaces(ws_name):
+            self.logger.warning(f'企业空间-｛ws_name｝：名称不存在!')
+            return
+        dev_ids = self.get_devops_id(ws_name)
+        if not dev_ids:
+            self.logger.warning(f'devops工程未找到！')
+            return
+        self.headers.update(self.get_issuer_params())
+        for dev_id in dev_ids:
+            pipe_info = self.get_pipelines(dev_id)
+            if not pipe_info: continue
+            for p_info in pipe_info.items():
+                self.run_pipe(dev_id, p_info)
+
 
 if __name__ == '__main__':
     k8s = K8sLogin()
-    k8s.login()
+    k8s.run()
