@@ -106,6 +106,10 @@ class K8sLogin:
 
     @staticmethod
     def check_valid_cookie():
+        """
+        判断cookie是否过期，是否有效
+        :return:
+        """
         match = re.search('expire=(\d+);', headers_k8s, re.S)
         expire_stamp = int(int(match.group(1))) / 1000 if match else 0
         state = True if expire_stamp > int(time.time()) else False
@@ -136,6 +140,11 @@ class K8sLogin:
         self.headers['Content-Type'] = get_content_text()
 
     def get_workspaces(self, ws_name):
+        """
+        判断测试空间是否存在
+        :param ws_name: 空间名称
+        :return: bool 存在标记
+        """
         ws_url = self.config['ws_url']
         ws_resp = self.get_response(ws_url, method='GET')
         r_data = self.check_response(response=ws_resp)
@@ -143,6 +152,11 @@ class K8sLogin:
         return exist_flag
 
     def get_devops_id(self, ws_name):
+        """
+        根据空间名称获取需要运行的工程id
+        :param ws_name: 空间名称
+        :return: [dev_id] 工程id组成的列表
+        """
         dev_url, dev_str = self.config['dev_url'].format(ws_name), self.config['dev_name']
         dev_names = dev_str.split(',') if ',' in dev_str else [dev_str]
         dev_resp = self.get_response(dev_url, method='GET')
@@ -152,15 +166,35 @@ class K8sLogin:
         return dev_ids
 
     def get_issuer_params(self):
+        """
+        获取运行流水线的必要请求头参数
+        :return:
+        """
         issuer_url = self.config['issuer_url']
         issuer_resp = self.get_response(issuer_url, method='GET')
         r_data = {} if issuer_resp is None else issuer_resp.json()
         params_data = {r_data['crumbRequestField']: r_data['crumb']} if r_data else {}
         return params_data
 
+    def pipename_format(self):
+        """
+        格式化为正确的流水线名称
+        :return:
+        """
+        pipe_str = self.config['pipe_name']
+        name_list = pipe_str.split(',') if ',' in pipe_str else [pipe_str]
+        pipe_names = list(
+            map(lambda s: f"{s.split('_')[1]}-nginx" if s.startswith('pre_') else f'kp-exam-{s}', name_list))
+        return pipe_names
+
     def get_pipelines(self, devops_id, env):
-        pipe_url, pipe_str = self.config['pipe_url'], self.config['pipe_name']
-        pipe_names = pipe_str.split(',') if ',' in pipe_str else [pipe_str]
+        """
+        查询工程下运行流水线的名称及运行参数
+        :param devops_id: 工程id
+        :param env: 推送镜像环境
+        :return: ｛流水线名称:运行参数列表｝
+        """
+        pipe_url, pipe_names = self.config['pipe_url'], self.pipename_format()
         pipe_reparams = {'start': 0, 'limit': 20,
                          'q': f'type:pipeline;organization:jenkins;pipeline:{devops_id}/*;excludedFromFlattening'
                               f':jenkins.branch.MultiBranchProject,hudson.matrix.MatrixProject&filter=no-folders'}
@@ -174,14 +208,26 @@ class K8sLogin:
         return pipe_info
 
     def print_run_info(self, info):
+        """
+        打印流水线运行参数
+        :param info: 流水线信息
+        :return: 流水线名称，运行参数，版本号
+        """
         p_name, p_parameters = info
         branch_name, version, deployed, push_aliyuncs = [_['value'] for _ in p_parameters]
         test_flag = '✅' if deployed == 'True' else '❌'
         prod_flag = '✅' if push_aliyuncs == 'True' else '❌'
-        self.logger.info(f'开始运行流水线-->【{p_name}:{branch_name}:{version}】,测试环境：{test_flag},线上环境：{prod_flag}')
+        self.logger.info(
+            f'开始运行流水线-->【{p_name}:{branch_name}:{version}】,测试环境：{test_flag},线上环境：{prod_flag}')
         return p_name, p_parameters, version
 
     def run_pipe(self, dev_id, p_info):
+        """
+        运行单个流水线
+        :param dev_id: devops工程id
+        :param p_info: （流水线名称,运行参数）
+        :return:
+        """
         p_name, p_parameters, version = self.print_run_info(p_info)
         run_url = self.config['run_url'].format(dev_id, p_name)
         run_resp = self.get_response(url=run_url, method='POST', data={"parameters": p_parameters})
@@ -193,6 +239,14 @@ class K8sLogin:
             self.logger.warning(f'{p_name}:运行失败❌')
 
     def run(self):
+        """
+        1、k8s流水线登录
+        2、查询企业空间是否存在
+        3、查询devops工程是否存在
+        4、循环遍历devops工程
+        5、循环遍历devops工程下的流水线
+        :return:
+        """
         self.login()
         ws_name, env_name = self.config['ws_name'], self.config['env_name']
         if not self.get_workspaces(ws_name):
