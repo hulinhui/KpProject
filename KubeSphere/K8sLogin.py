@@ -1,6 +1,8 @@
 import base64
 import json
 import re
+import time
+
 from QuestionCard.KpRequest.Handle_Logger import HandleLog
 from QuestionCard.KpRequest.NotifyMessage import read_config
 from QuestionCard.KpRequest.FormatHeaders import get_format_headers, headers_k8s, get_content_text
@@ -13,7 +15,7 @@ class K8sLogin:
         self.config = read_config(name='KUBESPHERE')
         self.domain = self.config['test_domain']
         self.logger = HandleLog()
-        self.headers = get_format_headers(headers_k8s)
+        self.headers = None
 
     def get_response(self, url, method='GET', params=None, data=None):
         """
@@ -55,12 +57,13 @@ class K8sLogin:
         :param url: 请求登录url，get
         :return: salt_text  加密所需字段
         """
-        login_response = self.get_response(url, method='GET')
-        self.set_headers_cookie(login_response)
-        text = login_response.text if login_response else ''
+        self.headers = get_format_headers(headers_k8s)
+        login_response = self.get_response(url)
+        text, cookie_item = (login_response.text, login_response.cookies) if login_response else ('', {})
+        cookie_str = ';'.join([f'{k}={v}' for k, v in cookie_item.items()]) if cookie_item else ''
         match = re.search("var\ssalt\s=\s'(.*?)'", text, re.S)
         salt_text = match.group(1) if match else ''
-        return salt_text
+        return salt_text, cookie_str
 
     def encrypt_pwd(self, salt):
         """
@@ -82,69 +85,71 @@ class K8sLogin:
         encoded_prefix = base64.b64encode(''.join(prefix).encode('utf-8')).decode('utf-8')
         return encoded_prefix + '@' + ''.join(ret)
 
-    def set_headers_cookie(self, response):
-        """
-        设置cookies
-        :param response: 响应对象
-        :return: None
-        """
-        cookie_list = response.cookies.items() if response else None
-        if not cookie_list:
-            self.logger.warning('设置登录cookie失败！')
-            return
-        self.headers['Cookie'] = ';'.join([f'{k}={v}' for k, v in cookie_list])
-
-    def login_send(self, url, encrypt_text):
+    def login_send(self, url, salt_text):
         """
         登录
         :param url: 登录url，post
-        :param encrypt_text: 密码加密串
-        :return: None
+        :param salt_text: 加密参数salt
+        :return: 登录后的cookie字符串
         """
+        encrypt_text = self.encrypt_pwd(salt_text)
         login_data = f"username={self.config['account']}&encrypt={quote(encrypt_text)}"
         self.headers['Content-Type'] = get_content_text(flag=True)
-        resposne = self.get_response(url, method='POST', data=login_data)
-        if resposne:
-            self.logger.info('KubeSpere登录成功!')
-            self.set_headers_cookie(resposne)
+        response = self.get_response(url, method='POST', data=login_data)
+        if response:
+            self.logger.info('KubeSpere-account登录成功!')
+            login_cookie_str = ';'.join([f'{k}={v}' for k, v in response.cookies.items()])
+
+            return login_cookie_str
         else:
             self.logger.warning('KubeSpere登录失败!')
 
+    @staticmethod
+    def check_valid_cookie():
+        match = re.search('expire=(\d+);', headers_k8s, re.S)
+        expire_stamp = int(int(match.group(1))) / 1000 if match else 0
+        state = True if expire_stamp > int(time.time()) else False
+        return state
+
     def login(self):
         """
-        1、登录页面获取加密参数salt
-        2、密码进行加密返回加密串
-        3、使用加密串登录
+        1、判断请求头中是否存在cookie，判断cookie是否过期，过期执行登录，未过期跳过登录
+        2、登录页面获取加密参数salt和cookie字符串
+        3、设置cookie给登录接口使用及加密操作
+        4、使用加密串登录，登录成功设置登录后的cookie
         :return:
         """
-        login_url = self.config['login_url']
-        salt_text = self.get_login_salt(login_url)
-        if not salt_text:
-            self.logger.warning('获取登录页salt失败')
-            return
-        encrypt_text = self.encrypt_pwd(salt_text)
-        self.login_send(login_url, encrypt_text)
+        if not self.check_valid_cookie():
+            login_url = self.config['login_url']
+            salt_text, cookie_str = self.get_login_salt(login_url)
 
-    def users(self):
-        user_url = self.config['user_url']
-        user_resp = self.get_response(user_url, method='GET')
-        result, r_data = self.check_response(user_resp)
-        print(r_data)
-        if result:
-            print(r_data)
-        else:
-            self.logger.warning('获取数据失败!')
+            if not (salt_text and cookie_str):
+                self.logger.warning('获取登录页salt失败')
+                return
 
-    def run_pipe(self, dev_id, p_info):
-        p_name, p_parameters = p_info
-        run_url = self.config['run_url'].format(dev_id, p_name)
-        run_data = {"parameters": p_parameters}
-        run_resp = self.get_response(url=run_url, method='POST', data=run_data)
-        r_data = {} if run_resp is None else run_resp.json()
-        if r_data:
-            self.logger.info(f"{p_name}:运行成功！--->序号为：{r_data['id']}")
+            self.headers['Cookie'] = cookie_str
+            login_cookie = self.login_send(login_url, salt_text)
+            self.headers['Cookie'] = login_cookie
         else:
-            self.logger.warning(f'{p_name}:运行失败')
+            self.logger.info('KubeSpere-cookie登录成功!')
+            self.headers = get_format_headers(headers_k8s)
+        self.headers['Content-Type'] = get_content_text()
+
+    def get_workspaces(self, ws_name):
+        ws_url = self.config['ws_url']
+        ws_resp = self.get_response(ws_url, method='GET')
+        r_data = self.check_response(response=ws_resp)
+        exist_flag = bool(r_data) and any(_['metadata']['name'] == ws_name for _ in r_data)
+        return exist_flag
+
+    def get_devops_id(self, ws_name):
+        dev_url, dev_str = self.config['dev_url'].format(ws_name), self.config['dev_name']
+        dev_names = dev_str.split(',') if ',' in dev_str else [dev_str]
+        dev_resp = self.get_response(dev_url, method='GET')
+        r_data = self.check_response(response=dev_resp)
+        dev_ids = [i['metadata']['name'] for i in r_data if
+                   i['metadata']['annotations']['kubesphere.io/alias-name'] in dev_names] if r_data else []
+        return dev_ids
 
     def get_issuer_params(self):
         issuer_url = self.config['issuer_url']
@@ -153,41 +158,43 @@ class K8sLogin:
         params_data = {r_data['crumbRequestField']: r_data['crumb']} if r_data else {}
         return params_data
 
-    def get_pipelines(self, devops_id):
-        pipe_url, pipe_names = self.config['pipe_url'], self.config['pipe_name'].split(',')
+    def get_pipelines(self, devops_id, env):
+        pipe_url, pipe_str = self.config['pipe_url'], self.config['pipe_name']
+        pipe_names = pipe_str.split(',') if ',' in pipe_str else [pipe_str]
         pipe_reparams = {'start': 0, 'limit': 20,
                          'q': f'type:pipeline;organization:jenkins;pipeline:{devops_id}/*;excludedFromFlattening'
                               f':jenkins.branch.MultiBranchProject,hudson.matrix.MatrixProject&filter=no-folders'}
         pipe_resp = self.get_response(pipe_url, method='GET', params=pipe_reparams)
-        json_data = {} if pipe_resp is None else pipe_resp.json()
-        pipe_items = json_data.get('items', [])
+        pipe_items = [] if pipe_resp is None else pipe_resp.json().get('items', [])
         filtered_items = [item for item in pipe_items if item['name'] in pipe_names]
-        pipe_params = [[{k: str(v) for k, v in param['defaultParameterValue'].items() if k != '_class'} for param in
-                        items['parameters']] for items in filtered_items]
+        pipe_params = [[{k: str(v) if v or env == 'test' else 'True' for k, v in param['defaultParameterValue'].items()
+                         if k != '_class'} for param in items['parameters']] for items in filtered_items]
         pipe_names = [item['name'] for item in filtered_items]
         pipe_info = dict(zip(pipe_names, pipe_params))
         return pipe_info
 
-    def get_devops_id(self, ws_name):
-        dev_url, dev_names = self.config['dev_url'].format(ws_name), self.config['dev_name'].split(',')
-        dev_resp = self.get_response(dev_url, method='GET')
-        r_data = self.check_response(response=dev_resp)
-        dev_ids = [i['metadata']['name'] for i in r_data if
-                   i['metadata']['annotations']['kubesphere.io/alias-name'] in dev_names] if r_data else []
-        return dev_ids
+    def print_run_info(self, info):
+        p_name, p_parameters = info
+        branch_name, version, deployed, push_aliyuncs = [_['value'] for _ in p_parameters]
+        test_flag = '✅' if deployed == 'True' else '❌'
+        prod_flag = '✅' if push_aliyuncs == 'True' else '❌'
+        self.logger.info(f'开始运行流水线-->【{p_name}:{branch_name}:{version}】,测试环境：{test_flag},线上环境：{prod_flag}')
+        return p_name, p_parameters, version
 
-    def get_workspaces(self, ws_name):
-        ws_url = self.config['ws_url']
-        self.headers['Content-Type'] = get_content_text()
-        ws_resp = self.get_response(ws_url, method='GET')
-        r_data = self.check_response(response=ws_resp)
-        exist_flag = bool(r_data) and any(_['metadata']['name'] == ws_name for _ in r_data)
-        return exist_flag
+    def run_pipe(self, dev_id, p_info):
+        p_name, p_parameters, version = self.print_run_info(p_info)
+        run_url = self.config['run_url'].format(dev_id, p_name)
+        run_resp = self.get_response(url=run_url, method='POST', data={"parameters": p_parameters})
+        r_data = {} if run_resp is None else run_resp.json()
+        if r_data:
+            version_no = f"{p_name}:{version}.{r_data['id']}"
+            self.logger.info(f"{p_name}:运行成功✅！--->版本号为：{version_no}")
+        else:
+            self.logger.warning(f'{p_name}:运行失败❌')
 
     def run(self):
-        cookies_str = self.headers.get('Cookie', None)
-        if not cookies_str: self.login()
-        ws_name = self.config['ws_name']
+        self.login()
+        ws_name, env_name = self.config['ws_name'], self.config['env_name']
         if not self.get_workspaces(ws_name):
             self.logger.warning(f'企业空间-｛ws_name｝：名称不存在!')
             return
@@ -197,7 +204,7 @@ class K8sLogin:
             return
         self.headers.update(self.get_issuer_params())
         for dev_id in dev_ids:
-            pipe_info = self.get_pipelines(dev_id)
+            pipe_info = self.get_pipelines(dev_id, env_name)
             if not pipe_info: continue
             for p_info in pipe_info.items():
                 self.run_pipe(dev_id, p_info)
