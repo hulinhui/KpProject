@@ -97,12 +97,11 @@ class K8sLogin:
         self.headers['Content-Type'] = get_content_text(flag=True)
         response = self.get_response(url, method='POST', data=login_data)
         if response:
-            self.logger.info('KubeSpere-account登录成功!')
+            self.logger.info('KubeSpere-account登录成功✅!')
             login_cookie_str = ';'.join([f'{k}={v}' for k, v in response.cookies.items()])
-
             return login_cookie_str
         else:
-            self.logger.warning('KubeSpere登录失败!')
+            self.logger.warning('KubeSpere登录失败❌!')
 
     @staticmethod
     def check_valid_cookie():
@@ -112,8 +111,9 @@ class K8sLogin:
         """
         match = re.search('expire=(\d+);', headers_k8s, re.S)
         expire_stamp = int(int(match.group(1))) / 1000 if match else 0
+        expire_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(expire_stamp))
         state = True if expire_stamp > int(time.time()) else False
-        return state
+        return state, expire_time
 
     def login(self):
         """
@@ -123,19 +123,18 @@ class K8sLogin:
         4、使用加密串登录，登录成功设置登录后的cookie
         :return:
         """
-        if not self.check_valid_cookie():
+        state, expire_time = self.check_valid_cookie()
+        if not state:
             login_url = self.config['login_url']
             salt_text, cookie_str = self.get_login_salt(login_url)
-
             if not (salt_text and cookie_str):
                 self.logger.warning('获取登录页salt失败')
                 return
-
             self.headers['Cookie'] = cookie_str
             login_cookie = self.login_send(login_url, salt_text)
             self.headers['Cookie'] = login_cookie
         else:
-            self.logger.info('KubeSpere-cookie登录成功!')
+            self.logger.info(f'KubeSpere-cookie登录成功✅->cookie有效期至:{expire_time}')
             self.headers = get_format_headers(headers_k8s)
         self.headers['Content-Type'] = get_content_text()
 
@@ -248,20 +247,20 @@ class K8sLogin:
         :return:
         """
         self.login()
-        ws_name, env_name = self.config['ws_name'], self.config['env_name']
-        if not self.get_workspaces(ws_name):
-            self.logger.warning(f'企业空间-｛ws_name｝：名称不存在!')
-            return
-        dev_ids = self.get_devops_id(ws_name)
-        if not dev_ids:
-            self.logger.warning(f'devops工程未找到！')
-            return
-        self.headers.update(self.get_issuer_params())
-        for dev_id in dev_ids:
-            pipe_info = self.get_pipelines(dev_id, env_name)
-            if not pipe_info: continue
-            for p_info in pipe_info.items():
-                self.run_pipe(dev_id, p_info)
+        # ws_name, env_name = self.config['ws_name'], self.config['env_name']
+        # if not self.get_workspaces(ws_name):
+        #     self.logger.warning(f'企业空间-｛ws_name｝：名称不存在!')
+        #     return
+        # dev_ids = self.get_devops_id(ws_name)
+        # if not dev_ids:
+        #     self.logger.warning(f'devops工程未找到！')
+        #     return
+        # self.headers.update(self.get_issuer_params())
+        # for dev_id in dev_ids:
+        #     pipe_info = self.get_pipelines(dev_id, env_name)
+        #     if not pipe_info: continue
+        #     for p_info in pipe_info.items():
+        #         self.run_pipe(dev_id, p_info)
 
 
 if __name__ == '__main__':
