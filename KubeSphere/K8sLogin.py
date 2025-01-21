@@ -247,20 +247,20 @@ class K8sLogin:
         :return:
         """
         self.login()
-        # ws_name, env_name = self.config['ws_name'], self.config['env_name']
-        # if not self.get_workspaces(ws_name):
-        #     self.logger.warning(f'企业空间-｛ws_name｝：名称不存在!')
-        #     return
-        # dev_ids = self.get_devops_id(ws_name)
-        # if not dev_ids:
-        #     self.logger.warning(f'devops工程未找到！')
-        #     return
-        # self.headers.update(self.get_issuer_params())
-        # for dev_id in dev_ids:
-        #     pipe_info = self.get_pipelines(dev_id, env_name)
-        #     if not pipe_info: continue
-        #     for p_info in pipe_info.items():
-        #         self.run_pipe(dev_id, p_info)
+        ws_name, env_name = self.config['ws_name'], self.config['env_name']
+        if not self.get_workspaces(ws_name):
+            self.logger.warning(f'企业空间-｛ws_name｝：名称不存在!')
+            return
+        dev_ids = self.get_devops_id(ws_name)
+        if not dev_ids:
+            self.logger.warning(f'devops工程未找到！')
+            return
+        self.headers.update(self.get_issuer_params())
+        for dev_id in dev_ids:
+            pipe_info = self.get_pipelines(dev_id, env_name)
+            if not pipe_info: continue
+            for p_info in pipe_info.items():
+                self.run_pipe(dev_id, p_info)
 
 
 if __name__ == '__main__':
