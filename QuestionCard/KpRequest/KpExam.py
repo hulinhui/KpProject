@@ -1,5 +1,8 @@
 import time
 
+import tenacity
+from tenacity import retry, stop_after_attempt, wait_exponential
+
 
 class KpExam:
     def __init__(self, l_object):
@@ -366,24 +369,119 @@ class KpExam:
         else:
             self.logger.info('获取响应失败!')
 
-    def get_exam_info(self, org_id):
-        exam_id = self.search_exam(org_id)
-        if exam_id:
-            exam_info = self.search_paper(exam_id, org_id)
-            return exam_info
+    def get_allocation_type(self, exam_info):
+        Pinfo_url = self.data['paperinfo_url']
+        Pinfo_params = {'paperId': exam_info.get('paperId')}
+        Pinfo_response = self.login_object.get_response(url=Pinfo_url, method='GET', params=Pinfo_params)
+        result, r_data = self.login_object.check_response(Pinfo_response)
+        if result:
+            d_data = r_data['data']
+            alloc_type = f"{d_data['markEngineType']}{d_data['allotType']}" if d_data['markEngineType'] == 1 \
+                else str(d_data['markEngineType'])
+            return alloc_type
         else:
+            self.logger.info('获取响应失败!')
+
+    def get_task_allocation_info(self, exam_info):
+        Dinfo_url = self.data['divinfo_url']
+        Dinfo_response = self.login_object.get_response(url=Dinfo_url, method='GET', params=exam_info)
+        result, r_data = self.login_object.check_response(Dinfo_response)
+        if result:
+            div_items = [{**exam_info, 'divId': item['id'], 'divName': item['divName']} for item in r_data['data']]
+            return div_items
+        else:
+            self.logger.info('获取响应失败!')
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    def get_pending_allocation(self, d_item):
+        Aremain_url = self.data['allotremain_url']
+        Aremain_response = self.login_object.get_response(url=Aremain_url, method='GET', params=d_item)
+        result, r_data = self.login_object.check_response(Aremain_response)
+        if result:
+            return r_data['data']
+        error_code = r_data.get('errorCode')
+        if error_code == '-1':
+            raise Exception(r_data['errorMsg'])
+        self.logger.info('获取响应失败!')
+
+    def get_pending_allocation_wrapper(self, d_item):
+        """重试包装器"""
+        try:
+            return self.get_pending_allocation(d_item)
+        except tenacity.RetryError as e:
+            self.logger.error(f"获取响应失败，所有重试均已耗尽: {e}")
             return None
+
+    def get_grading_teachers_data(self, d_item):
+        Alist_url = self.data['allotlist_url']
+        Alist_response = self.login_object.get_response(url=Alist_url, method='GET', params=d_item)
+        result, r_data = self.login_object.check_response(Alist_response)
+        if result:
+            return r_data['data']['list']
+        else:
+            self.logger.info('获取响应失败!')
+
+    @staticmethod
+    def get_remain_nums(alloc_type, r_list, t_list):
+        total_remaining = max(sum(task['schoolRemainNum'] for task in r_list), 0)
+        if alloc_type in {'3', '11'}:
+            return [(r['schoolRemainNum'], [(t['teacherId'], t['allotNum']) for t in t_list
+                                            if t['schoolId'] == r['schoolId']]) for r in r_list]
+        else:
+            return [(total_remaining, [(teacher['teacherId'], teacher['allotNum']) for teacher in t_list])]
+
+    @staticmethod
+    def average_distribution(remain_num, t_num):
+        if t_num <= 0: return []
+        remainder = remain_num % t_num
+        base = (remain_num - remainder) // t_num
+        result = [base + 1 if i < remainder else base for i in range(t_num)]
+        return result
+
+    def allocate_tasks(self, alloc_type, remainlist, tealist):
+        remain_tea_list = self.get_remain_nums(alloc_type, remainlist, tealist)
+        task_numbers = [num for r, t in remain_tea_list for num in self.average_distribution(r, len(t))]
+        teachers_info = [teacher for _, teachers in remain_tea_list for teacher in teachers]
+        allotList = [{'number': num + info[1], 'teacherId': info[0]} for info, num in zip(teachers_info, task_numbers)]
+        return allotList
+
+    def execute_task_allocation(self, div_name, div_item, allot_list):
+        Atask_url = self.data['allottask_url']
+        Atask_data = div_item | {'allotList': allot_list}
+        Atask_response = self.login_object.get_response(url=Atask_url, method='POST', data=Atask_data)
+        result, r_data = self.login_object.check_response(Atask_response)
+        if result:
+            self.logger.info(f'第{div_name}题分配任务成功!')
+        else:
+            self.logger.info('获取响应失败!')
+
+    def average_allocate_all_questions(self, exam_info):
+        alloc_type = self.get_allocation_type(exam_info)
+        if alloc_type in ['0', '2']:
+            self.logger.info('效率优先或分班阅卷无需分配任务')
+            return
+        div_items = self.get_task_allocation_info(exam_info)
+        for div_item in div_items:
+            div_name = div_item.pop('divName')
+            remain_task_list = self.get_pending_allocation_wrapper(div_item)
+            teacher_list = self.get_grading_teachers_data(div_item)
+            allotList = self.allocate_tasks(alloc_type, remain_task_list, teacher_list)
+            self.execute_task_allocation(div_name, div_item, allotList)
+        else:
+            self.logger.info('所有题平均分配成功！')
 
     def run(self):
         org_id = self.login_object.get_login_token()
-        exam_info = self.get_exam_info(org_id)
+        exam_info = self.search_paper(examId, org_id) if (examId := self.search_exam(org_id)) else None
         if exam_info is not None:
             # 全卷恢复或暂停
             # self.exam_marking(exam_info, 1)
-            divId = self.exam_questionlist(exam_info, '20')
-            self.exam_divremark(exam_info, divId)
+            # divId = self.exam_questionlist(exam_info, '1')
+            # self.exam_divremark(exam_info, divId)
             # 全卷重评
-            # self.exam_remark(exam_info)
+            self.exam_remark(exam_info)
+            # 平均分配所有题
+            self.average_allocate_all_questions(exam_info)
         else:
             self.logger.info('考试信息数据获取有误!')
 
@@ -393,4 +491,5 @@ if __name__ == '__main__':
 
     kp_login = KpLogin()
     ke = KpExam(kp_login)
+    # ke.create_exam()
     ke.run()
