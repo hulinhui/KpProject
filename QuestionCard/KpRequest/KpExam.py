@@ -370,6 +370,11 @@ class KpExam:
             self.logger.info('获取响应失败!')
 
     def get_allocation_type(self, exam_info):
+        """
+        获取分配方式
+        :param exam_info: 包含examId和paperId的字典信息
+        :return: str 分配方式类型
+        """
         Pinfo_url = self.data['paperinfo_url']
         Pinfo_params = {'paperId': exam_info.get('paperId')}
         Pinfo_response = self.login_object.get_response(url=Pinfo_url, method='GET', params=Pinfo_params)
@@ -383,6 +388,11 @@ class KpExam:
             self.logger.info('获取响应失败!')
 
     def get_task_allocation_info(self, exam_info):
+        """
+        获取主观题题组id及题组名称
+        :param exam_info: 包含examId和paperId的字典信息
+        :return: list  所有题组的id信息的字典
+        """
         Dinfo_url = self.data['divinfo_url']
         Dinfo_response = self.login_object.get_response(url=Dinfo_url, method='GET', params=exam_info)
         result, r_data = self.login_object.check_response(Dinfo_response)
@@ -394,6 +404,11 @@ class KpExam:
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def get_pending_allocation(self, d_item):
+        """
+        获取单题待分配量
+        :param d_item: 包含examId和paperId和divId的字典信息
+        :return: list  单校或多校待分配量信息
+        """
         Aremain_url = self.data['allotremain_url']
         Aremain_response = self.login_object.get_response(url=Aremain_url, method='GET', params=d_item)
         result, r_data = self.login_object.check_response(Aremain_response)
@@ -413,6 +428,11 @@ class KpExam:
             return None
 
     def get_grading_teachers_data(self, d_item):
+        """
+        获取题组阅卷老师数据
+        :param d_item: 包含examId和paperId和divId的字典信息
+        :return: list 阅卷老师列表
+        """
         Alist_url = self.data['allotlist_url']
         Alist_response = self.login_object.get_response(url=Alist_url, method='GET', params=d_item)
         result, r_data = self.login_object.check_response(Alist_response)
@@ -423,6 +443,13 @@ class KpExam:
 
     @staticmethod
     def get_remain_nums(alloc_type, r_list, t_list):
+        """
+
+        :param alloc_type: 分配类型
+        :param r_list: 待分配量数据
+        :param t_list: 阅卷老师数据
+        :return: list 根据分配类型返回对应的所需数据
+        """
         total_remaining = max(sum(task['schoolRemainNum'] for task in r_list), 0)
         if alloc_type in {'3', '11'}:
             return [(r['schoolRemainNum'], [(t['teacherId'], t['allotNum']) for t in t_list
@@ -432,6 +459,12 @@ class KpExam:
 
     @staticmethod
     def average_distribution(remain_num, t_num):
+        """
+        平均分配数量
+        :param remain_num: 待分配量
+        :param t_num: 老师数量
+        :return: list 每个老师对应的量列表
+        """
         if t_num <= 0: return []
         remainder = remain_num % t_num
         base = (remain_num - remainder) // t_num
@@ -439,6 +472,13 @@ class KpExam:
         return result
 
     def allocate_tasks(self, alloc_type, remainlist, tealist):
+        """
+        平均分配任务
+        :param alloc_type: 分配类型
+        :param remainlist: 待分配量数据
+        :param tealist: 阅卷老师数据
+        :return: list 生成分配任务接口的传参
+        """
         remain_tea_list = self.get_remain_nums(alloc_type, remainlist, tealist)
         task_numbers = [num for r, t in remain_tea_list for num in self.average_distribution(r, len(t))]
         teachers_info = [teacher for _, teachers in remain_tea_list for teacher in teachers]
@@ -446,16 +486,29 @@ class KpExam:
         return allotList
 
     def execute_task_allocation(self, div_name, div_item, allot_list):
+        """
+        运行分配任务
+        :param div_name: 题组名称
+        :param div_item: 包含examId和paperId和divId的字典信息
+        :param allot_list: 多个老师分配任务的组成的字典列表
+        :return: None
+        """
         Atask_url = self.data['allottask_url']
         Atask_data = div_item | {'allotList': allot_list}
         Atask_response = self.login_object.get_response(url=Atask_url, method='POST', data=Atask_data)
         result, r_data = self.login_object.check_response(Atask_response)
         if result:
-            self.logger.info(f'第{div_name}题分配任务成功!')
+            success_flag = r_data.get('data')
+            success_flag and self.logger.info(f'第{div_name}题分配任务成功!') or self.logger.info(r_data['errorMsg'])
         else:
             self.logger.info('获取响应失败!')
 
     def average_allocate_all_questions(self, exam_info):
+        """
+        平均分配所有题
+        :param exam_info: 包含examId和paperId的字典信息
+        :return: None
+        """
         alloc_type = self.get_allocation_type(exam_info)
         if alloc_type in ['0', '2']:
             self.logger.info('效率优先或分班阅卷无需分配任务')
