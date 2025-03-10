@@ -213,6 +213,8 @@ class K8sLogin:
         :return: 流水线名称，运行参数，版本号
         """
         p_name, p_parameters = info
+        p_parameters = p_parameters[:2] + [p_parameters.pop()] + p_parameters[2:] if p_parameters and p_parameters[
+            2].get('name') == 'push_aliyuncs' else p_parameters
         branch_name, version, deployed, push_aliyuncs = [_['value'] for _ in p_parameters]
         test_flag = '✅' if deployed == 'True' else '❌'
         prod_flag = '✅' if push_aliyuncs == 'True' else '❌'
