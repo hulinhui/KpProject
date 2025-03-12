@@ -77,13 +77,14 @@ def get_newest_pdf(directory):
     return newest_pdf
 
 
-def convert_pdf_to_jpg(pdf_path):
+def convert_pdf_to_jpg(pdf_path, count):
     """
     将PDF文件转换为JPG图片。
 
     参数:
     pdf_name (str): PDF文件名。
     output_path:输出图片的文件夹路径
+    count： 最大图片的位数
     """
     path_list = []
     # 获取pdf去掉后缀的文件名
@@ -95,6 +96,8 @@ def convert_pdf_to_jpg(pdf_path):
     # 指定图片的宽度和高度（例如：宽为1653像素，高为2339像素）
     desired_width, desired_height = 1653, 2339
 
+    # 获取最大图片名称的位数-填充图片的长度，确保文件名称长度一致
+    number = len(str(count))
     # 保存图片到指定的文件夹
     for i, image in enumerate(images, 1):
         # 获取当前图片的宽度和高度
@@ -107,7 +110,7 @@ def convert_pdf_to_jpg(pdf_path):
         new_size = (int(current_width * ratio), int(current_height * ratio))
         resized_image = image.resize(new_size)
         # 设置输出路径和文件名
-        output_path = get_file_path(f'{i:02d}.jpg', output_folder)
+        output_path = get_file_path(f'{i:0{number}d}.jpg', output_folder)
         # 将PIL图像对象转换为JPG格式并保存
         resized_image.save(output_path, 'JPEG')
         path_list.append(output_path)
@@ -128,12 +131,14 @@ def copy_images_in_sequence(number, img_path_01, img_path_02):
     # 确保输出目录存在
     os.makedirs(output_folder, exist_ok=True)
 
+    # 获取最大图片名称的位数-填充图片的长度，确保文件名称长度一致
+    file_len = len(str(number))
     # 复制图片
-    for i in range(3, 2 * number, 2):
+    for i in range(3, number, 2):
         # 复制01图片，使用奇数索引
-        shutil.copy(img_path_01, os.path.join(output_folder, f'{i:02d}.jpg'))
+        shutil.copy(img_path_01, os.path.join(output_folder, f'{i:0{file_len}d}.jpg'))
         # 复制02图片，使用偶数索引
-        shutil.copy(img_path_02, os.path.join(output_folder, f'{i + 1:02d}.jpg'))
+        shutil.copy(img_path_02, os.path.join(output_folder, f'{i + 1:0{file_len}d}.jpg'))
     # 复制图片后的图片个数
     pic_num = len(get_file_list(output_folder))
     return pic_num
@@ -155,7 +160,7 @@ def generate_card_pic(logger, count, card_folder, file_name):
     # 获取pdf文件完整路径
     pdf_path = get_file_path(file_name, card_folder)
     # pdf转图片，并返回文件路径列表
-    pic_path_list = convert_pdf_to_jpg(pdf_path)
+    pic_path_list = convert_pdf_to_jpg(pdf_path, count)
     logger.info(f'题卡-{file_name}：转图片生成{len(pic_path_list)}张图片')
     # 图片复制
     pic_count = copy_images_in_sequence(count, *pic_path_list)

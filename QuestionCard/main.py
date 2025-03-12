@@ -61,7 +61,7 @@ def get_pdf_pic(barname_list, c_name, name):
     if not get_file_list(card_folder):
         return None
     # 存在文件时，进行生成题卡图片操作,返回元祖包含题卡文件夹路径及pdf文件路径
-    barcode_count = len(barname_list)
+    barcode_count = len(barname_list) * 2
     # pdf转图片并复制图片数量（条形码数量），返回图片pdf文件路径及图片文件夹名称
     card_tuple = generate_card_pic(logger, barcode_count, card_folder, file_name=name)
     return card_tuple
@@ -74,14 +74,16 @@ def create_image_info(stuname_list, b_folder, c_folder):
     card_id = card_class.find_card_type(file_name)
     # 获取题卡中解答题题组满分、打分类型、打分定位点
     card_item = card_class.get_zgt_preview_info(card_id) if card_id else None
+    # 获取图片文件名填充的长度
+    file_len = len(str(len(stuname_list) * 2))
     # 遍历学生准考证号文件名
     for i, stuname in enumerate(stuname_list, 1):
         # 获取条形码图片完整路径,准考证号条形码方式使用
         b_file = get_file_path(stuname, b_folder)
         # 获取题卡奇数图片,填涂信息都在奇数页
-        c_file = get_file_path(f'{2 * i - 1:02d}.jpg', c_folder)
+        c_file = get_file_path(f'{2 * i - 1:0{file_len}d}.jpg', c_folder)
         # 获取题卡偶数图片,手阅操作使用
-        d_file = get_file_path(f'{2 * i:02d}.jpg', c_folder)
+        d_file = get_file_path(f'{2 * i:0{file_len}d}.jpg', c_folder)
         # 获取学生准考证号,准考证号填涂使用
         stu_barcode = stuname.split('.')[0]
         # 生成题卡数据【包含条形码粘贴、准考证号填充、选择题填充、第一页的手阅】
@@ -119,5 +121,5 @@ def main():
 
 
 if __name__ == '__main__':
-    file_name = '手阅测试题卡'  # 移动文件到cardinfo目录时需要传文件名(带后缀名)
+    file_name = '高中数学20250306165618'  # 移动文件到cardinfo目录时需要传文件名(带后缀名)
     main()
