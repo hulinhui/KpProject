@@ -1,7 +1,6 @@
-import time
-
 import tenacity
 from tenacity import retry, stop_after_attempt, wait_exponential
+from KpCreateExam import KpCreateExam
 
 
 class KpExam:
@@ -9,243 +8,6 @@ class KpExam:
         self.login_object = l_object
         self.data = self.login_object.kp_data
         self.logger = self.login_object.logger
-
-    def create_org_data(self):
-        """
-        生成考试所需的机构信息
-        :return: org_item 机构信息item
-        """
-        key_list = ['orgType', 'orgNo', 'orgName', 'mobile', 'userId', 'name', 'orgLevel']
-        value_names = self.login_object.get_login_token(key_list)
-        key_names = ['orgId'] + key_list[:-1] + ['examLevel']
-        org_item = dict(zip(key_names, value_names))
-        return org_item
-
-    @staticmethod
-    def name_cover_code(grade_name):
-        """
-        获取学阶代码及年级代码
-        学阶code：1、小学 2、初中 3、高中
-        年级code：1-9（一到9年级）、10-12（高一、高二、高三）
-        :param grade_name:
-        :return: step_index，grade_index
-        """
-        cover_func = lambda cn: {'一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6,
-                                 '七': 7, '八': 8, '九': 9}.get(cn, 0)
-        if len(grade_name) >= 3:
-            grade_int = cover_func(grade_name[0])
-            if grade_int <= 6:
-                step_index = 1
-            else:
-                step_index = 2
-            grade_index = grade_int
-        else:
-            step_index = 3
-            grade_index = 9 + cover_func(grade_name[1])
-        return str(step_index), str(grade_index)
-
-    def get_grade(self, orgid):
-        """
-        获取年级id、学阶id
-        :param orgid: 机构id
-        :return: 年级代码，年级信息item（包含年级id、学阶id、机构id）
-        """
-        grade_name = self.data['e_grade_name']
-        step_code, grade_code = self.name_cover_code(grade_name)
-        grade_url = self.login_object.kp_data['grade_url']
-        grade_data = {"data": {"orgId": orgid, "includeGrades": 'true'}}
-        grade_resp = self.login_object.get_response(grade_url, method='POST', data=grade_data)
-        result, data = self.login_object.check_response(grade_resp)
-        if result:
-            grade_list = [(grade['id'], step_item['id']) for step_item in data['data'] if step_item['code'] == step_code
-                          for grade in step_item['grades'] if grade['code'] == grade_code]
-            grade_id, step_id = grade_list[0]
-            grade_item = {'gradeId': grade_id, 'gradeLevelIds': [step_id], 'orgId': orgid}
-            return int(grade_code), grade_item
-        else:
-            self.logger.warning('响应数据有误')
-            return None, None
-
-    def exam_map_info(self, org_type):
-        """
-        根据名称映射到传参对应字段
-        :param org_type: 机构类型（教育局还是单校）
-        :return: value_list 所需传参的列表
-        """
-        key_tuple = org_type, self.data['e_model'], self.data['e_numtype'], self.data['e_type'], self.data['e_source']
-        info_item = {
-            'orgFlag': {1: '联考', 2: '校内考'},
-            'examModel': {'普通': 0, '文理分科': 3, '3+1+2新高考': 2, '3+3新高考': 1},
-            'numType': {'准考证号': 0, '学号': 1, '学生账号后8位': 2},
-            'examType': {'周测': 'WEEKLY_EXAM', '单元': 'UNIT_EXAM', '月考': 'MONTHLY_EXAM', '期中': 'MID_TERM_EXAM',
-                         '期末': 'FINAL_EXAM', '模拟': 'MOCK_EXAM', '其他': 'OTHERS_EXAM'},
-            'stuSource': {'基础信息': 0, '临时考生': 1}
-        }
-        value_list = [item.get(key) for item, key in zip(info_item.values(), key_tuple)]
-        if org_type == 2: value_list[-1] = 0
-        return value_list
-
-    def create_basic_data(self, org_item):
-        """
-        生成考试所需的考试信息，包含机构信息
-        :param org_item: 机构信息字典
-        :return: exam_item 返回包含机构信息的字典数据
-        """
-        org_id, org_type = org_item['orgId'], org_item['orgType']
-        edate = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
-        edate_str = edate.translate(str.maketrans('', '', '-: '))
-        grade_code, grade_item = self.get_grade(org_id)
-        emap_info = self.exam_map_info(org_type)
-        exam_item = {"examDate": edate, "examGrade": grade_code, "examModel": emap_info[1], "stuSource": emap_info[4],
-                     "examName": f"{emap_info[0] + edate_str}", "examType": emap_info[3], "numType": emap_info[2]}
-        exam_item.update(**org_item, **{'gradeinfo': grade_item})
-        exam_item['add_red'] = True if self.data['e_from'] == '补录' else None
-        return exam_item
-
-    def query_grade_subject(self, grade_item, sub_count=20):
-        """
-        查询年级科目
-        :param grade_item: 年级所需参数
-        :param sub_count: 获取科目数量[前n科]
-        :return: data 科目数据列表
-        """
-        subject_url = self.data['subject_url']
-        subject_data = {'data': grade_item, 'pageSize': sub_count, 'pageNum': 1}
-        subject_response = self.login_object.get_response(url=subject_url, method='POST', data=subject_data)
-        result, r_data = self.login_object.check_response(subject_response)
-        if result:
-            data = r_data and r_data.get('data') or None
-            return data
-        else:
-            self.logger.info('获取响应失败!')
-
-    def query_edu_schools(self, grade_item):
-        """
-        教育局查询学校
-        :param grade_item: 查询参数
-        :return: school_list 包含学校id、学校名称的列表
-        """
-        name_list = self.data['school_name'].split(',')
-        school_url = self.data['school_edu_url']
-        school_data = {"eduId": grade_item['orgId'], "type": "3", "stepId": grade_item['gradeLevelIds'][0]}
-        school_resp = self.login_object.get_response(school_url, method='POST', data=school_data)
-        result, data = self.login_object.check_response(school_resp)
-        if result:
-            school_list = [(school_item['id'], school_item['name']) for school_item in data['data'] if
-                           school_item['name'] in name_list]
-            return school_list
-        else:
-            self.logger.warning('响应数据有误')
-
-    def new_class_subject(self, subject_item, sub_count=20, cls_count=20):
-        """
-        新高考模式查询班级
-        :param subject_item: 查询传参
-        :param sub_count: 获取科目数量[前n科]
-        :param cls_count: 获取班级数量[前n班]
-        :return: schoolList 学校班级数据
-        """
-        class_url = self.data['new_class']
-        class_response = self.login_object.get_response(url=class_url, method='POST', data=subject_item)
-        result, r_data = self.login_object.check_response(class_response)
-        if result:
-            sub_data = r_data and r_data.get('data') or None
-            schoolList = [{'subjectId': i['subjectId'], 'school_list': [
-                {'schoolId': j['schoolId'], 'schoolName': j['schoolName'],
-                 'classList': [{'schoolId': j['schoolId'], 'schoolName': j['schoolName'], 'classType': 1, **c} for c in
-                               j['classList'][:cls_count]]} for j in i['schoolList']]} for i in sub_data[:sub_count]]
-            return schoolList
-        else:
-            self.logger.info('获取响应失败!')
-
-    def old_class_subject(self, subject_item, cls_count=20):
-        """
-        普通模式查询班级
-        :param subject_item: 科目传参
-        :param cls_count: 获取班级数量[前n班]
-        :return: data 学校班级数据
-        """
-        class_url = self.data['old_class']
-        class_data = {'data': subject_item, 'pageSize': cls_count, 'pageNum': 1}
-        class_response = self.login_object.get_response(url=class_url, method='POST', data=class_data)
-        result, r_data = self.login_object.check_response(class_response)
-        if result:
-            data = r_data and r_data.get('data') or None
-            return data
-        else:
-            self.logger.info('获取响应失败!')
-
-    def get_subject_class(self, b_item, sub_count, cls_count):
-        """
-        查询科目对应的班级信息及人数
-        :param b_item: 考试所需参数item
-        :param sub_count: 科目数[前n科]
-        :param cls_count: 班级数[前n班]
-        :return: schoolList 学校相关数据列表
-        """
-        emodel, otype, oid, oname = b_item['examModel'], b_item['orgType'], b_item['orgId'], b_item['orgName']
-        g_item = b_item.pop('gradeinfo')
-        schoolinfos = [(oid, oname)] if otype == 2 else self.query_edu_schools(g_item)
-        if emodel > 0:
-            schoolIds = [_[0] for _ in schoolinfos]
-            subject_item = {'modelType': str(emodel), 'gradeId': g_item['gradeId'], 'schoolIds': schoolIds}
-            schoolList = self.new_class_subject(subject_item, sub_count=sub_count, cls_count=cls_count)
-        else:
-            g_item['gradeLevelId'] = g_item.pop('gradeLevelIds')[0]
-            subject_item = g_item | {'classType': 1}
-            class_list = self.old_class_subject(subject_item, cls_count=cls_count) if otype == 2 else []
-            schoolList = [{'schoolId': _[0], 'schoolName': _[1], 'classList': class_list} for _ in schoolinfos]
-        return schoolList
-
-    def create_papers_data(self, exam_item):
-        """
-        生成考试的papers数据
-        :param exam_item: 考试所需参数item
-        :return: None
-        """
-        g, e, i, n = [exam_item[key] for key in ['gradeinfo', 'examModel', 'orgId', 'orgName']]
-        a, b, c, d = [exam_item.pop(key) for key in ['mobile', 'userId', 'name', 'add_red']]
-        s_count, c_count = int(self.data['s_num']), int(self.data['c_num'])
-        subject_list = self.query_grade_subject(g, sub_count=s_count)
-        g['subjectId'] = subject_list[0]['subjectId']
-        schoolList = self.get_subject_class(exam_item, sub_count=s_count, cls_count=c_count)
-        school_item = schoolList if e else [{'subjectId': subject['subjectId'], 'school_list': schoolList} for
-                                            subject in subject_list]
-        scanner_list = [{"isAdmin": 2, "mobile": a, "orgId": i, "orgName": n, "teacherId": b, "teacherName": c}]
-        paper_list = [{'inputRecord': d, 'paperName': s['subjectName'], 'scannerList': scanner_list,
-                       'schoolList': v['school_list'], 'subjectList': [s]} for s in subject_list for v in school_item if
-                      s['subjectId'] == v['subjectId']]
-        exam_item['papers'] = paper_list
-
-    def generate_exam(self, create_data):
-        """
-        创建考试
-        :param create_data: 创建考试data
-        :return: exam_id 考试id
-        """
-        create_url = self.data['create_exam_url']
-        create_exam_resp = self.login_object.get_response(url=create_url, method='POST', data=create_data)
-        result, r_data = self.login_object.check_response(create_exam_resp)
-        if result:
-            exam_id = r_data.get("data") or None
-            return exam_id
-        else:
-            self.logger.info('获取响应失败!')
-
-    def create_exam(self):
-        """
-        1、生成考试所需的机构信息（crate_org_data）
-        2、生成考试所需的考试信息（create_basic_data）
-        3、生成考试所需的papers信息（create_papers_data）
-        4、创建考试（generate_exam）
-        :return:
-        """
-        org_item = self.create_org_data()
-        exam_item = self.create_basic_data(org_item)
-        self.create_papers_data(exam_item)
-        exam_id = self.generate_exam(exam_item)
-        print(exam_id)
-        # self.del_exam(exam_id)
 
     def search_exam(self, orgid):
         """
@@ -305,17 +67,6 @@ class KpExam:
         else:
             self.logger.info('获取响应失败!')
 
-    def del_exam(self, exam_id):
-        self.login_object.get_login_token()
-        del_url = self.data['delexam_url']
-        del_data = {'data': {'examId': exam_id, 'userRoleCodes': ['ROLE_ORG_MANAGER']}}
-        del_response = self.login_object.get_response(url=del_url, method='POST', data=del_data)
-        result, r_data = self.login_object.check_response(del_response)
-        if result:
-            self.logger.info('考试删除成功!')
-        else:
-            self.logger.info('获取响应失败!')
-
     def exam_remark(self, remark_data):
         """
         全卷重评
@@ -323,6 +74,9 @@ class KpExam:
         :return: None
         """
         remark_url = self.data['remark_url']
+        authcode = KpCreateExam(self.login_object).generate_authcode(remark_data.get('paperId'), '3')
+        remark_data.update({'authcode': authcode})
+        print(remark_data)
         remark_response = self.login_object.get_response(url=remark_url, method='POST', data=remark_data)
         result, r_data = self.login_object.check_response(remark_response)
         if result:
@@ -344,7 +98,8 @@ class KpExam:
 
     def exam_divremark(self, exam_info, div_id):
         divremark_url = self.data['divremark_url']
-        divremark_data = {'paperId': exam_info.get('paperId'), 'divId': div_id}
+        authcode = KpCreateExam(self.login_object).generate_authcode(div_id, '2')
+        divremark_data = {'paperId': exam_info.get('paperId'), 'divId': div_id, 'authCode': authcode}
         divremark_response = self.login_object.get_response(url=divremark_url, method='POST', data=divremark_data)
         result, r_data = self.login_object.check_response(divremark_response)
         if result:
@@ -397,65 +152,52 @@ class KpExam:
         Dinfo_response = self.login_object.get_response(url=Dinfo_url, method='GET', params=exam_info)
         result, r_data = self.login_object.check_response(Dinfo_response)
         if result:
-            div_items = [{**exam_info, 'divId': item['id'], 'divName': item['divName']} for item in r_data['data']]
+            div_items = [{**exam_info, 'divId': item['id'], 'divName': item['divName']} for item in
+                         r_data['data']['divList']]
             return div_items
         else:
             self.logger.info('获取响应失败!')
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-    def get_pending_allocation(self, d_item):
+    def get_question_allocation(self, d_item):
         """
-        获取单题待分配量
+        获取单题组任务量（阅卷学校及阅卷老师信息）
         :param d_item: 包含examId和paperId和divId的字典信息
-        :return: list  单校或多校待分配量信息
+        :return: item  当前题组任务量字典
         """
-        Aremain_url = self.data['allotremain_url']
-        Aremain_response = self.login_object.get_response(url=Aremain_url, method='GET', params=d_item)
-        result, r_data = self.login_object.check_response(Aremain_response)
+        allot_url = self.data['allotlist_url'].format(d_item['paperId'], d_item['divId'])
+        allot_response = self.login_object.get_response(url=allot_url, method='POST')
+        result, r_data = self.login_object.check_response(allot_response)
         if result:
-            return r_data['data']
+            return next(item for item in r_data['data'] if item['divId'] == d_item['divId'])
         error_code = r_data.get('errorCode')
         if error_code == '-1':
             raise Exception(r_data['errorMsg'])
         self.logger.info('获取响应失败!')
 
-    def get_pending_allocation_wrapper(self, d_item):
+    def get_question_allocation_wrapper(self, d_item):
         """重试包装器"""
         try:
-            return self.get_pending_allocation(d_item)
+            return self.get_question_allocation(d_item)
         except tenacity.RetryError as e:
             self.logger.error(f"获取响应失败，所有重试均已耗尽: {e}")
             return None
 
-    def get_grading_teachers_data(self, d_item):
-        """
-        获取题组阅卷老师数据
-        :param d_item: 包含examId和paperId和divId的字典信息
-        :return: list 阅卷老师列表
-        """
-        Alist_url = self.data['allotlist_url']
-        Alist_response = self.login_object.get_response(url=Alist_url, method='GET', params=d_item)
-        result, r_data = self.login_object.check_response(Alist_response)
-        if result:
-            return r_data['data']['list']
-        else:
-            self.logger.info('获取响应失败!')
-
     @staticmethod
-    def get_remain_nums(alloc_type, r_list, t_list):
+    def get_allot_nums(alloc_type, da_item):
         """
-
+        获取学校分配任务量及阅卷老师id（全体任务or按学校比例分）
         :param alloc_type: 分配类型
-        :param r_list: 待分配量数据
-        :param t_list: 阅卷老师数据
+        :param da_item: 题组任务量数据
         :return: list 根据分配类型返回对应的所需数据
         """
-        total_remaining = max(sum(task['schoolRemainNum'] for task in r_list), 0)
-        if alloc_type in {'3', '11'}:
-            return [(r['schoolRemainNum'], [(t['teacherId'], t['allotNum']) for t in t_list
-                                            if t['schoolId'] == r['schoolId']]) for r in r_list]
+        da_sum, schools = da_item.get('totalTaskNum', 0), da_item.get('schoolTeaAllot', [])
+        if alloc_type in {'3', '6', '11'}:
+            # 按学校比例模式(仅评本校、按学校-定量、按老师-定量-学校比例)
+            return [(s['totalTaskNum'], [t['teacherId'] for t in s['teaAllots']]) for s in schools]
         else:
-            return [(total_remaining, [(teacher['teacherId'], teacher['allotNum']) for teacher in t_list])]
+            # 按全体任务(单校-定量分配、按老师-定量-全体)
+            return [(da_sum, [t['teacherId'] for s in schools for t in s['teaAllots']])]
 
     @staticmethod
     def average_distribution(remain_num, t_num):
@@ -471,18 +213,19 @@ class KpExam:
         result = [base + 1 if i < remainder else base for i in range(t_num)]
         return result
 
-    def allocate_tasks(self, alloc_type, remainlist, tealist):
+    def div_allocate_tasks(self, alloc_type, allot_item, average_flag=True):
         """
         平均分配任务
         :param alloc_type: 分配类型
-        :param remainlist: 待分配量数据
-        :param tealist: 阅卷老师数据
+        :param allot_item: 题组任务量数据
+        :param average_flag:是否进行平均操作。默认为 True，表示平均，否则置为0。
         :return: list 生成分配任务接口的传参
         """
-        remain_tea_list = self.get_remain_nums(alloc_type, remainlist, tealist)
-        task_numbers = [num for r, t in remain_tea_list for num in self.average_distribution(r, len(t))]
+        remain_tea_list = self.get_allot_nums(alloc_type, allot_item)
+        avger_numbers = [num for r, t in remain_tea_list for num in self.average_distribution(r, len(t))]
+        task_numbers = avger_numbers if average_flag else [0] * len(avger_numbers)
         teachers_info = [teacher for _, teachers in remain_tea_list for teacher in teachers]
-        allotList = [{'number': num + info[1], 'teacherId': info[0]} for info, num in zip(teachers_info, task_numbers)]
+        allotList = [{'number': num, 'teacherId': info} for info, num in zip(teachers_info, task_numbers)]
         return allotList
 
     def execute_task_allocation(self, div_name, div_item, allot_list):
@@ -499,7 +242,8 @@ class KpExam:
         result, r_data = self.login_object.check_response(Atask_response)
         if result:
             success_flag = r_data.get('data')
-            success_flag and self.logger.info(f'第{div_name}题分配任务成功!') or self.logger.info(r_data['errorMsg'])
+            message_info = f'第{div_name}题分配任务成功!' if success_flag else r_data['errorMsg']
+            self.logger.info(message_info)
         else:
             self.logger.info('获取响应失败!')
 
@@ -516,10 +260,9 @@ class KpExam:
         div_items = self.get_task_allocation_info(exam_info)
         for div_item in div_items:
             div_name = div_item.pop('divName')
-            remain_task_list = self.get_pending_allocation_wrapper(div_item)
-            teacher_list = self.get_grading_teachers_data(div_item)
-            allotList = self.allocate_tasks(alloc_type, remain_task_list, teacher_list)
-            self.execute_task_allocation(div_name, div_item, allotList)
+            div_allot_item = self.get_question_allocation_wrapper(div_item)
+            div_allotList = self.div_allocate_tasks(alloc_type, div_allot_item, average_flag=True)
+            self.execute_task_allocation(div_name, div_item, div_allotList)
         else:
             self.logger.info('所有题平均分配成功！')
 
@@ -529,10 +272,11 @@ class KpExam:
         if exam_info is not None:
             # 全卷恢复或暂停
             # self.exam_marking(exam_info, 1)
-            # divId = self.exam_questionlist(exam_info, '1')
+            # 题组重评
+            # divId = self.exam_questionlist(exam_info, '11')
             # self.exam_divremark(exam_info, divId)
             # 全卷重评
-            self.exam_remark(exam_info)
+            # self.exam_remark(exam_info)
             # 平均分配所有题
             self.average_allocate_all_questions(exam_info)
         else:
@@ -544,5 +288,4 @@ if __name__ == '__main__':
 
     kp_login = KpLogin()
     ke = KpExam(kp_login)
-    # ke.create_exam()
     ke.run()
