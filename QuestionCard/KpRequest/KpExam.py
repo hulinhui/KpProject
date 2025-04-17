@@ -1,6 +1,6 @@
 import tenacity
 from tenacity import retry, stop_after_attempt, wait_exponential
-from KpCreateExam import KpCreateExam
+from KpCreateExam import KpCreateExam, config_reminder_decorator
 
 
 class KpExam:
@@ -266,6 +266,7 @@ class KpExam:
         else:
             self.logger.info('所有题平均分配成功！')
 
+    @config_reminder_decorator(content='管理员登录账号和考试名称及科目')
     def run(self):
         org_id = self.login_object.get_login_token()
         exam_info = self.search_paper(examId, org_id) if (examId := self.search_exam(org_id)) else None
