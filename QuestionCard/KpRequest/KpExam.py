@@ -1,6 +1,7 @@
 import tenacity
 from tenacity import retry, stop_after_attempt, wait_exponential
-from KpCreateExam import KpCreateExam, config_reminder_decorator
+from KpCreateExam import KpCreateExam
+from NotifyMessage import config_reminder_decorator
 
 
 class KpExam:

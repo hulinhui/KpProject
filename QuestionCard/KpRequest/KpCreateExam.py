@@ -6,21 +6,7 @@
 import time
 import random
 import string
-
-
-def config_reminder_decorator(content):
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            start_flag = input(f'请确认参数(例如：{content})是否已设置(输入y or n)：')
-            if start_flag.lower() == 'y':
-                result = func(*args, **kwargs)
-                return result
-            else:
-                print('请配置好对应的参数再来执行操作吧！')
-
-        return wrapper
-
-    return decorator
+from NotifyMessage import config_reminder_decorator
 
 
 class KpCreateExam:

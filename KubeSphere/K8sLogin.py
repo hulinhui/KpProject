@@ -2,9 +2,8 @@ import base64
 import json
 import re
 import time
-
 from QuestionCard.KpRequest.Handle_Logger import HandleLog
-from QuestionCard.KpRequest.NotifyMessage import read_config
+from QuestionCard.KpRequest.NotifyMessage import read_config, config_reminder_decorator
 from QuestionCard.KpRequest.FormatHeaders import get_format_headers, headers_k8s, get_content_text
 import requests
 from urllib.parse import quote
@@ -239,6 +238,7 @@ class K8sLogin:
         else:
             self.logger.warning(f'{p_name}:运行失败❌')
 
+    @config_reminder_decorator(content='cookies及镜像名称')
     def run(self):
         """
         1、k8s流水线登录
