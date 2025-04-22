@@ -285,23 +285,18 @@ class KpMarking:
         div_alias = question_item.pop('div_alias')
         div_str, div_num = '、'.join(div_alias), len(div_alias)
         self.logger.info(f"当前科目有({div_str})等{div_num}个题组需要阅卷")
-        question_item['itemId'] = div_alias[0]
         while div_alias:
+            question_item['itemId'] = div_alias.pop(0)
             encode_list = self.div_batch_task(question_item)
             submit_data = self.query_div_detail(question_item)
             while encode_list:
                 encode_info = encode_list.pop(0)
                 self.generate_random_score(submit_data, encode_info)
                 self.req_submit_score(submit_url, submit_data)
-                if not encode_list: continue
                 task_result = self.div_reques_task(task_url, question_item, vol_type=volume_type)
-                if not any(task_result): continue
+                if task_result in encode_list or not any(task_result): continue
                 encode_list.append(task_result)
-            div_alias.pop(0)
             self.logger.info(f"题组【{question_item['itemId']}】阅卷完成")
-            if not div_alias: break
-            question_item['itemId'] = div_alias[0]
-            self.div_reques_task(task_url, question_item, vol_type=volume_type)
         self.logger.info(f"本次总共评分次数:{self.count}")
 
     def problem_normal_paper(self):
@@ -376,4 +371,4 @@ if __name__ == '__main__':
 
     kp_login = KpLogin()
     km = KpMarking(kp_login)
-    km.run()
+    km.preload_normal_score()
