@@ -152,11 +152,12 @@ class KpMarking:
         result, r_data = self.login_object.check_response(batch_response)
         if result:
             encode_list = [(_['encode'], _['pjSeq'], _['taskId']) for _ in r_data.get("data")]
-            return encode_list
+            remain_task = next(_['remainTasks'] if _ else iter([0]) for _ in r_data.get("data"))
+            return encode_list, remain_task
         else:
             error_msg = r_data.get("errorCode") and r_data.get("errorMsg") or '获取响应失败!'
             self.logger.info(error_msg)
-            return []
+            return [], 0
 
     def generate_random_score(self, point_item, task_tuple, score_type=1):
         """
@@ -287,15 +288,17 @@ class KpMarking:
         self.logger.info(f"当前科目有({div_str})等{div_num}个题组需要阅卷")
         while div_alias:
             question_item['itemId'] = div_alias.pop(0)
-            encode_list = self.div_batch_task(question_item)
-            submit_data = self.query_div_detail(question_item)
+            encode_list, remain_task = self.div_batch_task(question_item)
+            myreq_num, submit_data = len(encode_list), self.query_div_detail(question_item)
             while encode_list:
                 encode_info = encode_list.pop(0)
                 self.generate_random_score(submit_data, encode_info)
                 self.req_submit_score(submit_url, submit_data)
+                if myreq_num >= remain_task: continue
                 task_result = self.div_reques_task(task_url, question_item, vol_type=volume_type)
                 if task_result in encode_list or not any(task_result): continue
                 encode_list.append(task_result)
+                myreq_num += 1
             self.logger.info(f"题组【{question_item['itemId']}】阅卷完成")
         self.logger.info(f"本次总共评分次数:{self.count}")
 
