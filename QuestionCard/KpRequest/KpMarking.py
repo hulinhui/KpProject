@@ -151,8 +151,9 @@ class KpMarking:
         batch_response = self.login_object.get_response(url=batch_task_url, method='POST', data=batch_data)
         result, r_data = self.login_object.check_response(batch_response)
         if result:
-            encode_list = [(_['encode'], _['pjSeq'], _['taskId']) for _ in r_data.get("data")]
-            remain_task = next(_['remainTasks'] if _ else iter([0]) for _ in r_data.get("data"))
+            batch_result = r_data.get("data")
+            encode_list = [(_['encode'], _['pjSeq'], _['taskId']) for _ in batch_result]
+            remain_task = int(next(_['remainTasks'] for _ in batch_result)) if batch_result else 0
             return encode_list, remain_task
         else:
             error_msg = r_data.get("errorCode") and r_data.get("errorMsg") or '获取响应失败!'
@@ -303,6 +304,10 @@ class KpMarking:
         self.logger.info(f"本次总共评分次数:{self.count}")
 
     def problem_normal_paper(self):
+        """
+        正常卷提交问题卷
+        :return:
+        """
         exam_data = self.exam_paper_info()
         volume_info = self.get_volume_info(volume_type=1)
         item = self.get_general_task(exam_data, volume_info)
