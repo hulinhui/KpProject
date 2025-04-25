@@ -29,7 +29,7 @@ def read_config(filename='notify.ini', name=None):
     return item_info
 
 
-def write_config(config_data,filename):
+def write_config(config_data, filename):
     config = RawConfigParser()
     dir_name = pathlib.Path(__file__).parent
     file_path = dir_name / filename
@@ -42,6 +42,21 @@ def write_config(config_data,filename):
             config.set(section, key, value)
     with open(filename, 'w', encoding='utf-8') as file:
         config.write(file)
+
+
+def config_reminder_decorator(content):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            start_flag = input(f'请确认参数(例如：{content})是否已设置(输入y or n)：')
+            if start_flag.lower() == 'y':
+                result = func(*args, **kwargs)
+                return result
+            else:
+                print('请配置好对应的参数再来执行操作吧！')
+
+        return wrapper
+
+    return decorator
 
 
 def get_sign_stamp(webhook_secret):
@@ -226,4 +241,3 @@ if __name__ == '__main__':
     # send_telegram()
     # send_pushplus('测试天气消息')
     sendWechat()
-

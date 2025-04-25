@@ -1,14 +1,14 @@
 from QuestionCard.KpRequest.KpLogin import KpLogin
 from QuestionCard.KpRequest.KpExam import KpExam
 from QuestionCard.PdfConvertImage import get_file_path
-from QuestionCard.KpRequest.CreateTempStu import GenerateExcel
+from QuestionCard.KpRequest.CreateTempStu import GenerateExcelStu
 
 
 class KpUploadFile:
     def __init__(self, up_type):
         self.login = KpLogin()
         self.logger = self.login.logger
-        self.up_list = ['stu', 'lin_stu', 'tea', 'score']
+        self.up_list = ['stu', 'lin_stu', 'tea', 'score', 'lin_tea']
         self.upload_type = self._check_type(up_type)
 
     def _check_type(self, up_type):
@@ -33,13 +33,13 @@ class KpUploadFile:
         upload_data = None
         exam_id = exam.search_exam(org_id)
         if not exam_id: return upload_data
-        if self.upload_type in ['stu', 'tea', 'score']:
+        if self.upload_type in ['stu', 'tea', 'score', 'lin_tea']:
             data = exam.search_paper(exam_id, org_id)
             upload_data = data.update(
                 {'absent': 0, 'override': 'false', 'entrance': 1}) if self.upload_type == 'score' else data
         if self.upload_type == 'lin_stu':
-            upload_data = exam.exam_detail(exam_id)
-            GenerateExcel().run('文理分科', upload_data['modelType'])
+            upload_data = exam.exam_detail_query(exam_id)
+            GenerateExcelStu().run('3+1+2', upload_data['modelType'])
         return upload_data
 
     def get_upload_info(self, org_id):
@@ -57,9 +57,10 @@ class KpUploadFile:
         folder_path = get_file_path('excel')
         upload_item = {
             'stu': (data['upload_stu_url'], upload_data, get_file_path('参考学生导入模板.xlsx', folder_path)),
-            'lin_stu': (data['upload_stu_lin_url'], upload_data, get_file_path('临时考生导入模版.xlsx', folder_path)),
+            'lin_stu': (data['upload_stu_lin_url'], upload_data, get_file_path('临时考生上报模版.xlsx', folder_path)),
             'tea': (data['upload_tea_url'], upload_data, get_file_path('阅卷老师导入模板.xlsx', folder_path)),
-            'score': (data['upload_score_url'], upload_data, get_file_path('上传成绩导入模版.xlsx', folder_path))
+            'score': (data['upload_score_url'], upload_data, get_file_path('上传成绩导入模版.xlsx', folder_path)),
+            'lin_tea': (data['upload_tea_lin_url'], upload_data, get_file_path('阅卷教师上报模版.xlsx', folder_path))
         }
         return upload_item.get(self.upload_type, "无效的输入")
 

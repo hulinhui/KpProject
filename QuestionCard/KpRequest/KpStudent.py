@@ -103,6 +103,23 @@ class KpStudent:
         else:
             self.object.logger.warning('响应数据有误')
 
+    def query_tealeaders(self, org_data):
+        """
+        查询题组长用户数据，包含所有用户（教育局包含所有单校用户，学校包含本校所有用户）
+        :return:
+        """
+        leaders_url = self.object.kp_data['leaders_url']
+        leaders_data = {'data': {'examId': '1', 'paperId': '2', 'itemId': '3',
+                                 'queryConditions': {'orgList': org_data, 'orgId': '', 'mobile': ''}},
+                        'pageSize': 999, 'pageNum': 1}
+        divleaders_response = self.object.get_response(url=leaders_url, method='POST', data=leaders_data)
+        result, r_data = self.object.check_response(divleaders_response)
+        if result:
+            tea_data = [(_['orgName'], _['teacherName'], _['mobile']) for _ in r_data['data'] if _['orgName']]
+            return tea_data
+        else:
+            self.object.logger.info('获取响应失败!')
+
     def query_class_info(self):
         """
         返回校区id、年级id、学阶id、班级id列表数据
@@ -306,7 +323,7 @@ class KpStudent:
 
 if __name__ == '__main__':
     stu_obj = KpStudent()
-    stu_obj.delete_class_student()
+    # stu_obj.delete_class_student()
     aa = stu_obj.query_class_student_zkzh()
     print(aa, len(aa))
     # stu_obj.add_class_student(label_name='文理分科')

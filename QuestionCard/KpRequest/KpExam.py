@@ -61,12 +61,16 @@ class KpExam:
         detail_response = self.login_object.get_response(url=detail_url, method='GET', params=detail_params)
         result, r_data = self.login_object.check_response(detail_response)
         if result:
-            grade_id = r_data['data']['gradeId']
-            exam_type = r_data['data']['examModel'] or None
-            school_ids = ','.join([item['schoolId'] for item in r_data['data']['papers'][0]['schoolList']])
-            return {'examId': exam_id, 'gradeId': grade_id, 'schoolIds': school_ids, 'modelType': exam_type}
+            return r_data.get("data", {})
         else:
             self.logger.info('获取响应失败!')
+
+    def exam_detail_query(self, exam_id):
+        exam_data = self.exam_detail(exam_id)
+        grade_id = exam_data.get('gradeId')
+        exam_type = exam_data.get('examModel')
+        school_ids = ','.join([item['schoolId'] for item in exam_data['papers'][0]['schoolList']])
+        return {'examId': exam_id, 'gradeId': grade_id, 'schoolIds': school_ids, 'modelType': exam_type}
 
     def exam_remark(self, remark_data):
         """
@@ -75,9 +79,8 @@ class KpExam:
         :return: None
         """
         remark_url = self.data['remark_url']
-        authcode = KpCreateExam(self.login_object).generate_authcode(remark_data.get('paperId'), '3')
-        remark_data.update({'authcode': authcode})
-        print(remark_data)
+        # authcode = KpCreateExam(self.login_object).generate_authcode(remark_data.get('paperId'), '3')
+        # remark_data.update({'authcode': authcode})
         remark_response = self.login_object.get_response(url=remark_url, method='POST', data=remark_data)
         result, r_data = self.login_object.check_response(remark_response)
         if result:
@@ -278,7 +281,7 @@ class KpExam:
             # divId = self.exam_questionlist(exam_info, '11')
             # self.exam_divremark(exam_info, divId)
             # 全卷重评
-            # self.exam_remark(exam_info)
+            self.exam_remark(exam_info)
             # 平均分配所有题
             self.average_allocate_all_questions(exam_info)
         else:
