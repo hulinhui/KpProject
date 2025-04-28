@@ -341,38 +341,6 @@ class KpMarking:
             self.submit_general_score(item, volume_info)
         self.logger.info(f"本次总共评分次数:{self.count}")
 
-    def thread_submit_score(self, question_item, volume_list):
-        encode_queue = queue.Queue()
-        volume_type, vol_name, *_, task_url, submit_url = volume_list
-        encode_list = self.div_batch_task(question_item)
-        for encode_info in encode_list: encode_queue.put(encode_info)
-        submit_data = self.query_div_detail(question_item)
-        while not encode_queue.empty():
-            encode_info = encode_queue.get()
-            self.generate_random_score(submit_data, encode_info)
-            self.req_submit_score(submit_url, submit_data)
-            if encode_queue.empty(): break
-            task_result = self.div_reques_task(task_url, question_item, vol_type=volume_type)
-            if not any(task_result): continue
-            encode_queue.put(task_result)
-        self.logger.info(f"题组【{question_item['itemId']}】阅卷完成")
-
-    def thread_preload_score(self):
-        div_queue = queue.Queue()
-        exam_data = self.exam_paper_info()
-        volume_info = self.get_volume_info(volume_type=1)
-        q_item = self.get_general_task(exam_data, volume_info)
-        if not (q_item and q_item.get('div_alias')): return
-        div_alias = q_item.pop('div_alias')
-        for div in div_alias: div_queue.put(div)
-        div_str, div_num = '、'.join(div_alias), len(div_alias)
-        self.logger.info(f"当前科目有({div_str})等{div_num}个题组需要阅卷")
-        while not div_queue.empty():
-            div_info = div_queue.get()
-            q_item['itemId'] = div_info
-            self.logger.info(f"题组【{div_info}】开始阅卷....")
-            self.thread_submit_score(q_item, volume_info)
-
 
 if __name__ == '__main__':
     from KpLogin import KpLogin
