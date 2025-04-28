@@ -43,7 +43,7 @@ class HandleLog:
         self.__all_log_path = os.path.join(self.log_path, self.__now_time + "-all" + ".log")  # 收集所有日志信息文件
         self.__error_log_path = os.path.join(self.log_path, self.__now_time + "-error" + ".log")  # 收集错误日志信息文件
         self.__logger = logging.getLogger()  # 创建日志记录器
-        self.__logger.setLevel(logging.DEBUG)  # 设置默认日志记录器记录级别
+        self.__logger.setLevel(logging.INFO)  # 设置默认日志记录器记录级别
 
     @staticmethod
     def __init_logpath():
