@@ -10,6 +10,7 @@ import logging
 import os
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
+import threading
 
 import colorlog
 
@@ -44,6 +45,7 @@ class HandleLog:
         self.__error_log_path = os.path.join(self.log_path, self.__now_time + "-error" + ".log")  # 收集错误日志信息文件
         self.__logger = logging.getLogger()  # 创建日志记录器
         self.__logger.setLevel(logging.INFO)  # 设置默认日志记录器记录级别
+        self.lock = threading.Lock()
 
     @staticmethod
     def __init_logpath():
@@ -151,19 +153,24 @@ class HandleLog:
         self.__close_handler(error_logger_handler)
 
     def debug(self, message):
-        self.__console('debug', message)
+        with self.lock:
+            self.__console('debug', message)
 
     def info(self, message):
-        self.__console('info', message)
+        with self.lock:
+            self.__console('info', message)
 
     def warning(self, message):
-        self.__console('warning', message)
+        with self.lock:
+            self.__console('warning', message)
 
     def error(self, message):
-        self.__console('error', message)
+        with self.lock:
+            self.__console('error', message)
 
     def critical(self, message):
-        self.__console('critical', message)
+        with self.lock:
+            self.__console('critical', message)
 
 
 if __name__ == '__main__':
