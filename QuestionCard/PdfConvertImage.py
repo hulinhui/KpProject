@@ -1,6 +1,17 @@
 import os
 import shutil
-from pdf2image import convert_from_path
+import importlib
+
+
+class LazyModule:
+    def __init__(self, module_name):
+        self._module_name = module_name
+        self._module = None
+
+    def __getattr__(self, attr):
+        if self._module is None:
+            self._module = importlib.import_module(self._module_name)
+        return getattr(self._module, attr)
 
 
 def clear_directory(directory):
@@ -92,7 +103,8 @@ def convert_pdf_to_jpg(pdf_path, count):
     # 不存在文件夹即创建文件夹
     os.makedirs(output_folder, exist_ok=True)
     # pdf转图片
-    images = convert_from_path(pdf_path, poppler_path=r'D:\poppler-24.07.0\Library\bin')
+    pdf2image = LazyModule('pdf2image')
+    images = pdf2image.convert_from_path(pdf_path, poppler_path=r'D:\poppler-24.07.0\Library\bin')
     # 指定图片的宽度和高度（例如：宽为1653像素，高为2339像素）
     desired_width, desired_height = 1653, 2339
 

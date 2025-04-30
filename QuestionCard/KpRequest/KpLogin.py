@@ -16,10 +16,10 @@ class KpLogin:
     def __init__(self):
         self.domain = None
         self.headers = None
+        self.org_id = None
         self.kp_data = read_config(name='KP')
-        self.token_data = read_config(filename='token.ini')
-        self.write_text = {}
         self.logger = HandleLog()
+        self.token_file = r'D:\PyCharm 2024.1.4\KpProject\QuestionCard\KpRequest\token.ini'
 
     def init_headers(self, format_str=None):
         """
@@ -76,7 +76,8 @@ class KpLogin:
         :param login_type: 登录类型（token还是账密）
         :return: r_data 登录信息
         """
-        kp_token, user_name = self.token_data.get(org_name), self.kp_data['user_name']
+        token_data = read_config(filename=self.token_file)
+        kp_token, user_name = token_data.get(org_name), self.kp_data['user_name']
         token = kp_token.get(user_name) if kp_token else None
         self.headers = self.init_headers()
         if login_type == 'token' and token:
@@ -164,15 +165,16 @@ class KpLogin:
         登录:
         :return: org_id  机构id
         """
-        org_name = self.kp_data['org_name']
+        org_name, token_item = self.kp_data['org_name'], {}
         account_data = self.create_login_data(org_name, login_type='token')
         if not account_data: return
         info_list = self.get_org_info(account_data, keys)
         user_name = info_list and info_list.pop(0)
         info_list and self.logger.info(f"用户-{user_name}:登录成功!")
-        self.write_text[org_name] = {user_name: self.headers['Authorization']}
-        write_config(self.write_text, filename='token.ini')
+        token_item[org_name] = {user_name: self.headers['Authorization']}
+        write_config(token_item, filename=self.token_file)
         info_data = info_list and info_list[0] if len(info_list) == 1 else info_list
+        self.org_id = info_data if len(info_list) == 1 else info_data[0]
         return info_data
 
 

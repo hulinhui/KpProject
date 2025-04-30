@@ -1,11 +1,10 @@
 import random
-from QuestionCard.KpRequest.KpLogin import KpLogin
 from faker import Faker
 
 
 class KpStudent:
-    def __init__(self, ids_run=True):
-        self.object = KpLogin()
+    def __init__(self, login_object, ids_run=True):
+        self.object = login_object
         self.org_id, self.org_type = self.object.get_login_token(keys=['orgType'])
         self.faker = Faker("zh-CN")
         self.ids_info = self.query_class_info() if ids_run else None
@@ -322,7 +321,11 @@ class KpStudent:
 
 
 if __name__ == '__main__':
-    stu_obj = KpStudent()
+    from QuestionCard.KpRequest.KpLogin import KpLogin
+
+    login = KpLogin()
+
+    stu_obj = KpStudent(login)
     # stu_obj.delete_class_student()
     aa = stu_obj.query_class_student_zkzh()
     print(aa, len(aa))

@@ -1,11 +1,10 @@
 import json
-from QuestionCard.KpRequest.KpLogin import KpLogin
 
 
 class KpCard:
-    def __init__(self):
-        self.object = KpLogin()
-        self.org_id = None
+    def __init__(self, login_object):
+        self.object = login_object
+        self.org_id = self.object.org_id
 
     def find_card_by_name(self, card_name):
         """
@@ -71,7 +70,7 @@ class KpCard:
         :param card_name: 题卡名称
         :return: 题卡id
         """
-        self.org_id = self.object.get_login_token()
+        if self.object.org_id is None: self.object.get_login_token()
         card_tuple = self.find_card_by_name(card_name)
         if card_tuple is None or card_tuple[1] != 4:
             self.object.logger.info(f'题卡不满足手阅的条件！')
@@ -80,7 +79,10 @@ class KpCard:
 
 
 if __name__ == '__main__':
-    card = KpCard()
-    card_ids = card.find_card_type('高中物理0829')
+    from QuestionCard.KpRequest.KpLogin import KpLogin
+
+    KpLogin = KpLogin()
+    card = KpCard(KpLogin)
+    card_ids = card.find_card_type('高中数学20250306165618')
     # card_info = card.get_zgt_preview_info(card_ids)
     print(card_ids)
