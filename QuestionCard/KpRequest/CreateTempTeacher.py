@@ -4,12 +4,13 @@
 """
 import pandas as pd
 import random
+from QuestionCard.KpRequest.KpLogin import KpLogin
 from QuestionCard.KpRequest.KpStudent import KpStudent
 
 
 class GenerateExcelTeacher:
     def __init__(self):
-        self.stuobj = KpStudent(ids_run=False)
+        self.stuobj = KpStudent(KpLogin(), ids_run=False)
         self.excel_path = r'D:\PyCharm 2024.1.4\KpProject\QuestionCard\KpRequest\excel'
 
     def stu_org_data(self):
@@ -55,7 +56,7 @@ class GenerateExcelTeacher:
             '手机号码(必填)': [tea_tup[2] for tea_tup in tea_list]
         }
         df = pd.DataFrame(excel_data)
-        df.to_excel(rf'{self.excel_path}\阅卷教师上报模版.xlsx', index=False)
+        df.to_excel(f'{self.excel_path}/阅卷教师上报模版.xlsx', index=False)
 
 
 if __name__ == '__main__':
