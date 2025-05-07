@@ -2,41 +2,77 @@
 作者: hulinhui6
 日期：2025年04月15日
 """
-import pandas as pd
-import random
 from QuestionCard.KpRequest.KpLogin import KpLogin
 from QuestionCard.KpRequest.KpStudent import KpStudent
 
 
 class GenerateExcelTeacher:
     def __init__(self):
-        self.stuobj = KpStudent(KpLogin(), ids_run=False)
-        self.excel_path = r'D:\PyCharm 2024.1.4\KpProject\QuestionCard\KpRequest\excel'
+        self._stuobj = KpStudent(KpLogin(), ids_run=False)
+        self._examobj = None
+        self._EXCEL_PATH = r'D:\PyCharm 2024.1.4\KpProject\QuestionCard\KpRequest\excel'
 
-    def stu_org_data(self):
-        """
-        根据登录账号的学校类型（教育局或学校）返回机构id组成的列表（教育局及教育局下的学校id，学校则返回学校id）
-        :return:
-        """
-        org_is_edu = self.stuobj.org_type == 1
-        school_list = self.stuobj.get_edu_school() if org_is_edu else [self.stuobj.org_id]
-        org_data = [self.stuobj.org_id] + school_list if org_is_edu else school_list
-        return org_data
+    @property
+    def examobj(self):
+        """调用考试模块对象"""
+        if not self._examobj:
+            from QuestionCard.KpRequest.KpExam import KpExam
+            self._examobj = KpExam(self._stuobj.object)
+        return self._examobj
 
-    def exam_subject_data(self):
+    def is_education_office(self):
+        """判断是否为教育局"""
+        return self._stuobj.org_type == 1
+
+    def get_organization_data(self):
+        """获取学校列表orgid"""
+        if self.is_education_office():
+            return self._stuobj.get_edu_school()
+        return [self._stuobj.org_id]
+
+    def fetch_organization_list(self):
+        """获取机构信息"""
+        return self.get_organization_data()
+
+    def fetch_teacher_data(self, org_list):
+        """获取老师数据"""
+        teacher_list = self._stuobj.query_tealeaders(org_list)
+        if self.is_education_office():
+            edu_teachers = self._stuobj.query_tealeaders(self._stuobj.org_id)
+            edu_teachers.extend(teacher_list)
+            teacher_list = edu_teachers
+        return teacher_list
+
+    def fetch_subject_data(self):
         """
-        导入kpexam文件中的kpexam类，调用查询考试id及查询科目信息接口，查询数据
+        调用查询考试id及查询科目信息接口，查询数据
         查询配置文件中考试对应的所有科目数据，并返回所有科目名称组成的列表
         :return: 科目名称组成的列表
         """
-        from QuestionCard.KpRequest.KpExam import KpExam
-        examobj = KpExam(self.stuobj.object)
-        exam_id = examobj.search_exam(self.stuobj.org_id)
+        exam_id = self.examobj.search_exam(self._stuobj.org_id)
         if exam_id is None: return []
-        exam_data = examobj.exam_detail(exam_id)
+        exam_data = self.examobj.exam_detail(exam_id)
         if not exam_data: return []
-        paper_names = [_['paperName'] for _ in exam_data['papers'] if not _['inputRecord']]
-        return paper_names
+        return [_['paperName'] for _ in exam_data['papers'] if not _['inputRecord']]
+
+    def generate_excel_file(self, teachers, subjects):
+        """
+        生成excel文件
+        :param teachers: 阅卷教师数据
+        :param subjects: 考试科目数据
+        :return:
+        """
+        import pandas as pd
+        import random
+        data = {
+            '学校(必填)': [t[0] for t in teachers],
+            '科目(必填)': [random.choice(subjects) if subjects else '语文' for _ in teachers],
+            '教师姓名(必填)': [t[1] for t in teachers],
+            '手机号码(必填)': [t[2] for t in teachers]
+        }
+        df = pd.DataFrame(data)
+        file_path = f'{self._EXCEL_PATH}/阅卷教师上报模版.xlsx'
+        df.to_excel(file_path, index=False)
 
     def run(self):
         """
@@ -46,17 +82,10 @@ class GenerateExcelTeacher:
         4、生成数据并保存到excel中
         :return:
         """
-        org_list = self.stu_org_data()
-        tea_list = self.stuobj.query_tealeaders(org_list)
-        paper_names = self.exam_subject_data()
-        excel_data = {
-            '学校(必填)': [tea_tup[0] for tea_tup in tea_list],
-            '科目(必填)': [random.choice(paper_names) for _ in tea_list],
-            '教师姓名(必填)': [tea_tup[1] for tea_tup in tea_list],
-            '手机号码(必填)': [tea_tup[2] for tea_tup in tea_list]
-        }
-        df = pd.DataFrame(excel_data)
-        df.to_excel(f'{self.excel_path}/阅卷教师上报模版.xlsx', index=False)
+        org_list = self.fetch_organization_list()
+        teacher_data = self.fetch_teacher_data(org_list)
+        subject_data = self.fetch_subject_data()
+        self.generate_excel_file(teacher_data, subject_data)
 
 
 if __name__ == '__main__':
