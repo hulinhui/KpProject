@@ -1,7 +1,5 @@
-from QuestionCard.GenerateBarcode import generate_barcode
 from QuestionCard.PdfConvertImage import (generate_card_pic, get_file_list, LazyModule,
                                           get_file_path, move_file_to_directory, clear_directory)
-from QuestionCard.EditImage import create_image_data, short_answer_scoring
 
 
 class CardImageGenerator:
@@ -42,13 +40,15 @@ class CardImageGenerator:
         if clear_flag:
             # 清空文件夹文件
             clear_directory(folder_path)
-            # 获取学生模块对象
+            # 导入KpStudent文件
             Student = LazyModule('QuestionCard.KpRequest.KpStudent')
             stu_class = Student.KpStudent(self.login)
             # 获取班级学生准考证号
             student_list = stu_class.query_class_student_zkzh()
+            # 导入GenerateBarcode文件
+            Barcode = LazyModule('QuestionCard.GenerateBarcode')
             # 批量生成学生条形码
-            list(map(generate_barcode, student_list)) if student_list else []
+            list(map(Barcode.generate_barcode, student_list)) if student_list else []
         # 获取目录下所有文件名的列表
         barname_list = get_file_list(folder_path)
         # 返回文件名列表
@@ -97,6 +97,8 @@ class CardImageGenerator:
         card_item = card_class.get_zgt_preview_info(card_id) if card_id else None
         # 获取图片文件名填充的长度
         file_len = len(str(len(stuname_list) * 2))
+        # 导入EditImage文件
+        EditImage = LazyModule('QuestionCard.EditImage')
         # 遍历学生准考证号文件名
         for i, stuname in enumerate(stuname_list, 1):
             # 获取条形码图片完整路径,准考证号条形码方式使用
@@ -108,11 +110,11 @@ class CardImageGenerator:
             # 获取学生准考证号,准考证号填涂使用
             stu_barcode = stuname.split('.')[0]
             # 生成题卡数据【包含条形码粘贴、准考证号填充、选择题填充、第一页的手阅】
-            create_image_data(b_file, c_file, stu_barcode, zk_position, xz_position, form, card_item)
+            EditImage.create_image_data(b_file, c_file, stu_barcode, zk_position, xz_position, form, card_item)
             # 网阅题卡直接跳过
             if card_item is None: continue
             # 第二页题卡进行手阅操作
-            short_answer_scoring(d_file, card_item)
+            EditImage.short_answer_scoring(d_file, card_item)
         self.logger.info('题卡数据制造完成！')
 
     def run(self, f_name, c_flag=None):
@@ -149,4 +151,4 @@ if __name__ == '__main__':
     KpLogin = LazyModule('QuestionCard.KpRequest.KpLogin')
     login_class = KpLogin.KpLogin()
     card = CardImageGenerator(login_class)
-    card.run(f_name='自制题卡网阅数据', c_flag=None)
+    card.run(f_name='手阅题号超过100测试', c_flag=True)
