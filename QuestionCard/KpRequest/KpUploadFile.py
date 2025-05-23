@@ -1,7 +1,5 @@
 from QuestionCard.KpRequest.KpLogin import KpLogin
-from QuestionCard.KpRequest.KpExam import KpExam
-from QuestionCard.PdfConvertImage import get_file_path
-from QuestionCard.KpRequest.CreateTempStu import GenerateExcelStu
+from QuestionCard.PdfConvertImage import get_file_path, LazyModule
 
 
 class KpUploadFile:
@@ -23,14 +21,15 @@ class KpUploadFile:
             raise Exception("上传类型不满足条件")
         return up_type
 
-    def get_exam_data(self, exam, org_id):
+    def get_exam_data(self, org_id):
         """
         生成上传文件所需参数
-        :param exam: 考试模块对象
         :param org_id: 机构id
         :return: 上传接口参数
         """
-        upload_data = None
+        # 调用考试模块对象(传参为登录模块对象)
+        KpExam = LazyModule('QuestionCard.KpRequest.KpExam')
+        exam, upload_data = KpExam.KpExam(self.login), None
         exam_id = exam.search_exam(org_id)
         if not exam_id: return upload_data
         if self.upload_type in ['stu', 'tea', 'score', 'lin_tea']:
@@ -39,7 +38,8 @@ class KpUploadFile:
                 {'absent': 0, 'override': 'false', 'entrance': 1}) if self.upload_type == 'score' else data
         if self.upload_type == 'lin_stu':
             upload_data = exam.exam_detail_query(exam_id)
-            GenerateExcelStu().run('3+1+2', upload_data['modelType'])
+            CreateTempStu = LazyModule('QuestionCard.KpRequest.CreateTempStu')
+            CreateTempStu.GenerateExcelStu().run('3+1+2')
         return upload_data
 
     def get_upload_info(self, org_id):
@@ -49,12 +49,9 @@ class KpUploadFile:
         :return: tuple  上传url、上传data、上传文件路径
         """
         # 获取配置信息数据
-        data = self.login.kp_data
-        # 调用考试模块对象(传参为登录模块对象)
-        exam = KpExam(self.login)
+        data, folder_path = self.login.kp_data, get_file_path('excel')
         # 考试模块获取exam_id及paper_id
-        upload_data = self.get_exam_data(exam, org_id)
-        folder_path = get_file_path('excel')
+        upload_data = self.get_exam_data(org_id)
         upload_item = {
             'stu': (data['upload_stu_url'], upload_data, get_file_path('参考学生导入模板.xlsx', folder_path)),
             'lin_stu': (data['upload_stu_lin_url'], upload_data, get_file_path('临时考生上报模版.xlsx', folder_path)),
@@ -78,7 +75,6 @@ class KpUploadFile:
             upload_response = self.login.get_response(url=upload_url, method='POST', data=upload_data,
                                                       files={'file': fp})
         result, data = self.login.check_response(upload_response)
-        print(data)
         if not result:
             # 接口数据返回失败，一种是接口直接返回（errormsg），另一种是记录到错误提示+
             error_data = data['data']
