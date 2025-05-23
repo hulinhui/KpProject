@@ -1,12 +1,10 @@
 import random
-from faker import Faker
 
 
 class KpStudent:
     def __init__(self, login_object, ids_run=True):
         self.object = login_object
         self.org_id, self.org_type = self.object.get_login_token(keys=['orgType'])
-        self.faker = Faker("zh-CN")
         self.ids_info = self.query_class_info() if ids_run else None
 
     def get_school_area(self):
@@ -107,9 +105,10 @@ class KpStudent:
         查询题组长用户数据，包含所有用户（教育局包含所有单校用户，学校包含本校所有用户）
         :return:
         """
+        org_data, orgId = (org_data, '') if isinstance(org_data, list) else ([], org_data)
         leaders_url = self.object.kp_data['leaders_url']
         leaders_data = {'data': {'examId': '1', 'paperId': '2', 'itemId': '3',
-                                 'queryConditions': {'orgList': org_data, 'orgId': '', 'mobile': ''}},
+                                 'queryConditions': {'orgList': org_data, 'orgId': orgId, 'mobile': ''}},
                         'pageSize': 999, 'pageNum': 1}
         divleaders_response = self.object.get_response(url=leaders_url, method='POST', data=leaders_data)
         result, r_data = self.object.check_response(divleaders_response)
@@ -212,7 +211,8 @@ class KpStudent:
         :param exam_label: 选考标签数据[(选考id，选考名称)]
         :return: batch_list:返回创建学生需要得请求data数据
         """
-        batch_list = []
+        from faker import Faker
+        faker, batch_list = Faker("zh-CN"), []
         # 查询当前校区年级、班级、校级id
         area_id, grade_id, _, class_ids = self.ids_info
         # 查询本校区内最大的准考证号、最大的学号
@@ -223,18 +223,18 @@ class KpStudent:
         if not (student_count and max_zkzh and max_no): return batch_list
         # 判断按选考还是按自定义，自定义的话无法获取选考标签，显示空字符串
         label_getter = lambda no, label: (label[no][0], label[no][1]) if isinstance(label, list) else ("", "")
-        # 添加数据
+        # 初始化测试数据，添加数据
         for index in range(1, student_count + 1):
             stu_item = {
-                "studentName": self.faker.name(),
+                "studentName": faker.name(),
                 "studentNo": f"{max_no + index}",
                 "zkzh": f"{max_zkzh + index}",
                 "selectExamLabelName": label_getter(index - 1, exam_label)[1],
                 "studentCode": f"{max_no + index}",
-                "tel": self.faker.phone_number(),
+                "tel": faker.phone_number(),
                 "sex": random.choice(range(1, 4)),
                 "idCardType": f"{random.choice(range(100001, 100013))}",
-                "idCard": self.faker.ssn(),
+                "idCard": faker.ssn(),
                 "index": index,
                 "gradeId": grade_id,
                 "gradeName": self.object.kp_data['grade_name'],
