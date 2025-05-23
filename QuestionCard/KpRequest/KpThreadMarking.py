@@ -1,4 +1,5 @@
 """
+多线程阅卷
 作者: hulinhui6
 日期：2025年04月28日
 """
@@ -18,7 +19,6 @@ import random
 
 # 忽略警告
 urllib3.disable_warnings(category=InsecureRequestWarning)
-
 logger = HandleLog()
 
 
@@ -30,6 +30,7 @@ class Producer(Thread):
         self.domain = None
         self.headers = None
         self.kp_data = read_config(name='KP')
+        self.stop_event = Event()
 
     def init_headers(self, format_str=None):
         """
@@ -142,16 +143,19 @@ class Producer(Thread):
         return info_list
 
     def run(self):
-        while not self.m_queue.empty():
+        while not self.stop_event.is_set():
             try:
+                if self.m_queue.empty():
+                    break
                 account_info = self.m_queue.get(timeout=1)
                 login_data = self.get_login_token(account_info, keys=['orgType', 'userId'])
                 tea_task = (*login_data, self.headers, self.domain)
                 self.t_queue.put(tea_task)
             except queue.Empty:
-                continue
+                break
             except Exception as e:
                 print(f'Error in producer: {e}')
+                break
 
 
 class Consumer(Thread):
@@ -272,7 +276,8 @@ class Consumer(Thread):
         volume_datas.insert(0, volume_type)
         return volume_datas
 
-    def get_general_task(self, tea_name, exam_data, volume_list):
+    @staticmethod
+    def get_general_task(tea_name, exam_data, volume_list):
         """
         根据卷的类型获取对应任务信息
         :param tea_name: 老师名称
@@ -295,7 +300,7 @@ class Consumer(Thread):
             finish_num, remain_num = paper_info.get(vol_field), paper_info.get(vol_unfield)
             div_alias = div_alias if remain_num > 0 else []
         exam_info['div_alias'] = div_alias
-        logger.info(f'{tea_name}阅卷-【{p_name}】{vol_name}任务：已完成==>{finish_num},还剩==>{remain_num}')
+        logger.info(f'[{tea_name}]-【{p_name}】{vol_name}任务：已完成==>{finish_num},还剩==>{remain_num}')
         return exam_info
 
     def div_batch_task(self, q_item):
@@ -432,44 +437,68 @@ class Consumer(Thread):
                 with self.lock:
                     encode_list.append(task_result)
                     myreq_num += 1
-                time.sleep(1)
             logger.info(f"[{tea_name}]-题组【{question_item['itemId']}】阅卷完成")
 
     def run(self):
         while not self.stop_event.is_set():
             try:
-                tea_name, *login_info, self.headers, self.domain = self.t_queue.get()
+                tea_task = self.t_queue.get(timeout=5)  # 增加超时时间到5秒
+                if tea_task is None:  # 检查是否收到停止信号
+                    break
+                tea_name, *login_info, self.headers, self.domain = tea_task
                 exam_data = self.exam_paper_info(login_info)
                 volume_info = self.get_volume_info(volume_type=1)
                 item = self.get_general_task(tea_name, exam_data, volume_info)
-                if not (item and item.get('div_alias')): return
+                if not (item and item.get('div_alias')):
+                    continue
                 self.submit_preload_score(tea_name, item, volume_info)
             except queue.Empty:
+                if self.t_queue.empty():  # 如果队列为空，检查是否应该退出
+                    break
                 continue
             except Exception as e:
                 print(f'Error in consumer: {e}')
+                continue
 
 
 def main():
-    user_account_list = [('17855223366', 'kp147258', '胡林辉一校'), ('17620387002', 'kp147258', '胡林辉二校'),
-                         ('17620387001', 'kp147258', '胡林辉二校'), ('17620387339', 'test147.', 'hlh区教育局')]
+    user_account_list = [('15244662278', 'kp147258', '胡林辉一校'), ('19610002002', 'kp147258', '胡林辉一校')]
     mob_queue = queue.Queue()
     tea_queue = queue.Queue()
-    for i in user_account_list: mob_queue.put(i)
+
+    # 初始化队列
+    for account in user_account_list:
+        mob_queue.put(account)
+
+    # 创建生产者和消费者线程
     producers = [Producer(mob_queue, tea_queue) for _ in user_account_list]
     consumers = [Consumer(tea_queue) for _ in user_account_list]
+
+    # 启动所有生产者线程
     for producer in producers:
         producer.start()
 
+    # 启动所有消费者线程
     for consumer in consumers:
         consumer.start()
 
+    # 等待所有生产者完成
     for producer in producers:
         producer.join()
 
+    # 向消费者队列发送结束信号
+    for _ in consumers:
+        tea_queue.put(None)
+
+    # 设置消费者停止事件
     for consumer in consumers:
         consumer.stop_event.set()
+
+    # 等待所有消费者完成
+    for consumer in consumers:
         consumer.join()
+
+    print("所有线程已完成执行")
 
 
 if __name__ == '__main__':
