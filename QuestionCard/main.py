@@ -37,22 +37,19 @@ class CardImageGenerator:
         :param clear_flag: 清除目录标记
         :return: barname_list  学生条形码名称列表数据
         """
-        if clear_flag:
-            # 清空文件夹文件
-            clear_directory(folder_path)
-            # 导入KpStudent文件
-            Student = LazyModule('QuestionCard.KpRequest.KpStudent')
-            stu_class = Student.KpStudent(self.login)
-            # 获取班级学生准考证号
-            student_list = stu_class.query_class_student_zkzh()
-            # 导入GenerateBarcode文件
-            Barcode = LazyModule('QuestionCard.GenerateBarcode')
-            # 批量生成学生条形码
-            list(map(Barcode.generate_barcode, student_list)) if student_list else []
-        # 获取目录下所有文件名的列表
-        barname_list = get_file_list(folder_path)
+        if not clear_flag:
+            # 获取目录下所有文件名的列表
+            return get_file_list(folder_path)
+        # 清空文件夹文件
+        clear_directory(folder_path)
+        # 导入KpStudent文件
+        Student = LazyModule('QuestionCard.KpRequest.KpStudent')
+        # 获取班级学生准考证号
+        student_list = Student.KpStudent(self.login).query_class_student_zkzh()
+        # 导入GenerateBarcode文件
+        Barcode = LazyModule('QuestionCard.GenerateBarcode')
         # 返回文件名列表
-        return barname_list
+        return Barcode.batch_generate_barcodes(student_list) if student_list else []
 
     def get_pdf_pic(self, barname_list, name):
         """
@@ -151,4 +148,4 @@ if __name__ == '__main__':
     KpLogin = LazyModule('QuestionCard.KpRequest.KpLogin')
     login_class = KpLogin.KpLogin()
     card = CardImageGenerator(login_class)
-    card.run(f_name='手阅题号超过100测试', c_flag=True)
+    card.run(f_name='手阅题号超过100测试', c_flag=False)
