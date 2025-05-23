@@ -1,3 +1,6 @@
+import itertools
+import random
+
 import tenacity
 from tenacity import retry, stop_after_attempt, wait_exponential
 from KpCreateExam import KpCreateExam
@@ -125,6 +128,16 @@ class KpExam:
         if result:
             status = '暂停' if valid == 9 else '恢复'
             self.logger.info(f'全卷{status}成功！')
+        else:
+            self.logger.info('获取响应失败!')
+
+    def get_omr_scheme(self, exam_info):
+        gomr_url, gomr_data = self.data['getomr_url'], {'data': exam_info}
+        gomr_response = self.login_object.get_response(url=gomr_url, method='POST', data=gomr_data)
+        result, r_data = self.login_object.check_response(gomr_response)
+        if result:
+            d_data = r_data and r_data.get('data', []) or []
+            return d_data
         else:
             self.logger.info('获取响应失败!')
 
@@ -287,10 +300,56 @@ class KpExam:
         else:
             self.logger.info('考试信息数据获取有误!')
 
+    def run2(self):
+        org_id = self.login_object.get_login_token()
+        exam_info = self.search_paper(examId, org_id) if (examId := self.search_exam(org_id)) else None
+        if exam_info is not None:
+            omr_data = self.get_omr_scheme(exam_info)
+            cardKg_list = self.generate_cardkg_data(omr_data)
+            somr_data = {'data': {**exam_info, 'cardKgItems': cardKg_list}}
+            self.set_omr_scheme(somr_data)
+        else:
+            self.logger.info('考试信息数据获取有误!')
+
+    @staticmethod
+    def generate_random_combination(question_type, num_options):
+        """
+        单选、多选、判断题型随机生成标准答案
+        :param question_type: 题型
+        :param num_options: 题选项个数
+        :return:
+        """
+        # 单选及多选根据数字转化成字母（1,2,3,4 --> A,B,C,D）列表，判断体型返回['T','F']列表
+        kgAnswer_list = ['T', 'F'] if question_type == '2' else [chr(64 + i) for i in range(1, num_options + 1)]
+        # 生成组合的位数（单选和判断只有1位，多选则是1-num_options之间的位数）
+        max_length = num_options if question_type == '1' else 1
+        # 生成选项组合所有可能的答案
+        combinations = [''.join(p) for p in itertools.chain.from_iterable(
+            itertools.combinations(kgAnswer_list, _) for _ in range(1, max_length + 1))]
+        # 从所有答案集中返回随机一个标答
+        return random.choice(combinations)
+
+    @staticmethod
+    def generate_cardkg_data(omr_data):
+        data = [{**item, 'itemId': item['no'], 'additional': False, 'originType': item['type'],
+                 'score': int(item['score']) if item.get('score') else random.randint(1, 10),
+                 'stdAnswer': item['stdAnswer'] if item.get('stdAnswer') else KpExam.generate_random_combination(
+                     item['type'], item['kgAnswerNum'])} for item in omr_data] if omr_data else []
+        return data
+
+    def set_omr_scheme(self, data):
+        somr_url = self.data['setomr_url']
+        somr_response = self.login_object.get_response(url=somr_url, method='POST', data=data)
+        result, r_data = self.login_object.check_response(somr_response)
+        if result:
+            print(r_data)
+        else:
+            self.logger.info('获取响应失败!')
+
 
 if __name__ == '__main__':
     from KpLogin import KpLogin
 
     kp_login = KpLogin()
     ke = KpExam(kp_login)
-    ke.run()
+    ke.run2()
