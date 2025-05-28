@@ -95,7 +95,7 @@ class CardImageGenerator:
         # 获取图片文件名填充的长度
         file_len = len(str(len(stuname_list) * 2))
         # 导入EditImage文件
-        EditImage = LazyModule('QuestionCard.EditImage')
+        ImageEdit = LazyModule('QuestionCard.ImageEdit')
         # 遍历学生准考证号文件名
         for i, stuname in enumerate(stuname_list, 1):
             # 获取条形码图片完整路径,准考证号条形码方式使用
@@ -107,11 +107,11 @@ class CardImageGenerator:
             # 获取学生准考证号,准考证号填涂使用
             stu_barcode = stuname.split('.')[0]
             # 生成题卡数据【包含条形码粘贴、准考证号填充、选择题填充、第一页的手阅】
-            EditImage.create_image_data(b_file, c_file, stu_barcode, zk_position, xz_position, form, card_item)
+            ImageEdit.create_image_data(b_file, c_file, stu_barcode, zk_position, xz_position, form, card_item)
             # 网阅题卡直接跳过
             if card_item is None: continue
             # 第二页题卡进行手阅操作
-            EditImage.short_answer_scoring(d_file, card_item)
+            ImageEdit.short_answer_scoring(d_file, card_item)
         self.logger.info('题卡数据制造完成！')
 
     def run(self, f_name, c_flag=None):
@@ -148,4 +148,4 @@ if __name__ == '__main__':
     KpLogin = LazyModule('QuestionCard.KpRequest.KpLogin')
     login_class = KpLogin.KpLogin()
     card = CardImageGenerator(login_class)
-    card.run(f_name='手阅题号超过100测试', c_flag=False)
+    card.run(f_name='高三物理0929网阅TM', c_flag=True)
