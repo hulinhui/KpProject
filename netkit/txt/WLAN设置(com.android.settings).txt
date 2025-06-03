@@ -1,0 +1,4 @@
+1、小米手机-设置-我的设备-备份与恢复-手机备份与恢复-手机备份（只备份WLAN设置数据）
+2、文件管理-手机存储-MIUI文件夹-backup-对应日期备份的文件夹-WLAN设置(com.android.settings).bak
+3、将“WLAN设置(com.android.settings).bak”的后缀名修改为“WLAN设置(com.android.settings).txt”
+4、将“WLAN设置(com.android.settings).txt”文件发送到电脑，拉取到当前txt文件夹中。
