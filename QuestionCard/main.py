@@ -45,7 +45,7 @@ class CardImageGenerator:
         # 导入KpStudent文件
         Student = LazyModule('QuestionCard.KpRequest.KpStudent')
         # 获取班级学生准考证号
-        student_list = Student.KpStudent(self.login).query_class_student_zkzh()
+        student_list = Student.KpStudent(self.login).query_class_student_no(numType=0)
         # 导入GenerateBarcode文件
         Barcode = LazyModule('QuestionCard.GenerateBarcode')
         # 返回文件名列表
@@ -148,4 +148,4 @@ if __name__ == '__main__':
     KpLogin = LazyModule('QuestionCard.KpRequest.KpLogin')
     login_class = KpLogin.KpLogin()
     card = CardImageGenerator(login_class)
-    card.run(f_name='高三物理0929网阅TM', c_flag=True)
+    card.run(f_name='测试手阅题卡序号超过100', c_flag=True)

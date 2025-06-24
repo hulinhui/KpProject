@@ -13,21 +13,24 @@ class KpExam:
         self.data = self.login_object.kp_data
         self.logger = self.login_object.logger
 
-    def search_exam(self, orgid):
+    def search_exam(self, orgid, other):
         """
         进行中考试列表查询考试id
         :param orgid: 机构id
+        :param other: 其他数据
         :return: str 考试id
+        self.data['exam_name']
         """
         exam_url = self.data['exam_url']
-        exam_data = {"data": {"examStatus": ["0"], "roleCodes": ["ROLE_ORG_MANAGER", "ROLE_TEACHER"], "orgType": 1,
-                              "orgId": orgid, "examName": self.data['exam_name']},
-                     "pageSize": 10, "pageNum": 1}
+        exam_data = {"examStatus": 0, "userId": other[0], "roleCodes": ["ROLE_ORG_MANAGER", "ROLE_TEACHER"],
+                     "orgType": other[1], "orgId": orgid, "examName": self.data['exam_name'],
+                     "pageSize": 999, "pageNum": 1, "isCollegeManager": 'false', "isExamManager": 'false',
+                     "isOrgManager": 'true', "isPaperLeader": 'true', "isPaperScanner": 'true'}
         exam_response = self.login_object.get_response(url=exam_url, method='POST', data=exam_data)
         result, r_data = self.login_object.check_response(exam_response)
         if result:
             data = r_data.get("data")
-            exam_id = data and data[0]['examId'] or None
+            exam_id = data and data['list'][0]['examId'] or None
             return exam_id
         else:
             self.logger.info('获取响应失败!')
@@ -41,7 +44,7 @@ class KpExam:
         """
         paper_url = self.data['paper_url']
         paper_data = {"data": {"examId": exam_id, "orgId": org_id,
-                               "roleCodes": ["ROLE_ORG_MANAGER", "ROLE_TEACHER"]}}
+                               "roleCodes": ["ROLE_ORG_MANAGER", "ROLE_TEACHER", "ROLE_CLASS_TEACHER"]}}
         paper_response = self.login_object.get_response(url=paper_url, method='POST', data=paper_data)
         result, r_data = self.login_object.check_response(paper_response)
         if result:
@@ -335,8 +338,8 @@ class KpExam:
 
     @config_reminder_decorator(content='管理员登录账号和考试名称及科目')
     def run(self):
-        org_id = self.login_object.get_login_token()
-        exam_info = self.search_paper(examId, org_id) if (examId := self.search_exam(org_id)) else None
+        org_id, *other = self.login_object.get_login_token(keys=['userId', 'orgType'])
+        exam_info = self.search_paper(examId, org_id) if (examId := self.search_exam(org_id, other)) else None
         if exam_info is not None:
             # 全卷恢复或暂停
             # self.exam_marking(exam_info, 1)
@@ -351,8 +354,8 @@ class KpExam:
             self.logger.info('考试信息数据获取有误!')
 
     def run2(self):
-        org_id = self.login_object.get_login_token()
-        exam_info = self.search_paper(examId, org_id) if (examId := self.search_exam(org_id)) else None
+        org_id, *other = self.login_object.get_login_token(keys=['userId','orgType'])
+        exam_info = self.search_paper(examId, org_id) if (examId := self.search_exam(org_id, other)) else None
         if exam_info is not None:
             kgomr_data = self.get_kgomr_scheme(exam_info)
             kgcard_list = self.generate_kgcard_data(kgomr_data)
@@ -367,4 +370,4 @@ if __name__ == '__main__':
 
     kp_login = KpLogin()
     ke = KpExam(kp_login)
-    ke.run2()
+    ke.run()

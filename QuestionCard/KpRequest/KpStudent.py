@@ -4,7 +4,7 @@ import random
 class KpStudent:
     def __init__(self, login_object, ids_run=True):
         self.object = login_object
-        self.org_id, self.org_type = self.object.get_login_token(keys=['orgType'])
+        self.org_id, *self.other = self.object.get_login_token(keys=['userId', 'orgType'])
         self.ids_info = self.query_class_info() if ids_run else None
 
     def get_school_area(self):
@@ -26,24 +26,19 @@ class KpStudent:
     def name_cover_code(grade_name):
         """
         获取学阶代码及年级代码
-        学阶code：1、小学 2、初中 3、高中
-        年级code：1-9（一到9年级）、10-12（高一、高二、高三）
-        :param grade_name:
-        :return: step_index，grade_index
+        :param grade_name: 年级名称（如：一年级、高一）
+        :return: (学阶代码, 年级代码)
+                学阶代码：1-小学, 2-初中, 3-高中
+                年级代码：1-9（一到九年级）, 10-12（高一到高三）
         """
-        cover_func = lambda cn: {'一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6,
-                                 '七': 7, '八': 8, '九': 9}.get(cn, 0)
-        if len(grade_name) >= 3:
-            grade_int = cover_func(grade_name[0])
-            if grade_int <= 6:
-                step_index = 1
-            else:
-                step_index = 2
-            grade_index = grade_int
-        else:
-            step_index = 3
-            grade_index = 9 + cover_func(grade_name[1])
-        return str(step_index), str(grade_index)
+        num_map = {'一': 1, '二': 2, '三': 3, '四': 4, '五': 5,
+                   '六': 6, '七': 7, '八': 8, '九': 9}
+
+        if len(grade_name) < 3:  # 高中年级
+            return '3', str(9 + num_map.get(grade_name[1], 0))
+
+        grade_num = num_map.get(grade_name[0], 0)
+        return '1' if grade_num <= 6 else '2', str(grade_num)
 
     def get_grade(self, grade_name):
         """
@@ -123,9 +118,9 @@ class KpStudent:
         返回校区id、年级id、学阶id、班级id列表数据
         :return:
         """
-        school_areaid = self.get_school_area() if self.org_type == 2 else self.get_edu_school()
+        school_areaid = self.get_school_area() if self.other[1] == 2 else self.get_edu_school()
         grade_tuple = self.get_grade(self.object.kp_data['grade_name'])
-        class_ids = self.get_class(school_areaid, *grade_tuple) if self.org_type == 2 else None
+        class_ids = self.get_class(school_areaid, *grade_tuple) if self.other[1] == 2 else None
         return [school_areaid, *grade_tuple, class_ids]
 
     def query_student(self, area_id, class_id=None):
@@ -295,15 +290,21 @@ class KpStudent:
         # 创建学生
         self.add_student(batch_data)
 
-    def query_class_student_zkzh(self):
+    def query_class_student_no(self, numType):
         """
-        查询班级学生准考证号
-        :return:
+        查询班级学生编号（准考证号/学号/账号后8位）
+        :param numType: 0:准考证号, 1:学号, 2:账号后8位
+        :return: 排序后的编号列表
         """
-        zkzh_data = self.get_student_data()
-        data = [item['zkzh'] for item in zkzh_data if item.get('zkzh')] if zkzh_data else []
-        data.sort()
-        return data
+        if not (res_data := self.get_student_data()):
+            return []
+        key_map = {
+            0: ('zkzh', lambda x: x),
+            1: ('studentNo', lambda x: x),
+            2: ('studentAccount', lambda x: x[-8:])
+        }
+        key, transform = key_map.get(numType, ('', lambda x: x))
+        return sorted(transform(item[key]) for item in res_data if item.get(key))
 
     def delete_class_student(self, student_name=None):
         """
@@ -327,8 +328,10 @@ if __name__ == '__main__':
 
     stu_obj = KpStudent(login)
     # stu_obj.delete_class_student()
-    aa = stu_obj.query_class_student_zkzh()
-    print(aa, len(aa))
-    # stu_obj.add_class_student(label_name='文理分科')
+    # aa = stu_obj.query_class_student_no(numType=0)
+    # print(aa, len(aa))
+    # aa = stu_obj.get_max_code()
+    # print(aa)
+    stu_obj.add_class_student(label_name='文理分科')
     # print(stu_obj.get_max_code())
     # stu_obj.delete_class_student()

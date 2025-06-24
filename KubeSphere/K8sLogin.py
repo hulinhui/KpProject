@@ -193,7 +193,7 @@ class K8sLogin:
         :return: ｛流水线名称:运行参数列表｝
         """
         pipe_url, pipe_names = self.config['pipe_url'], self.pipename_format()
-        pipe_reparams = {'start': 0, 'limit': 20,
+        pipe_reparams = {'start': 0, 'limit': 25,
                          'q': f'type:pipeline;organization:jenkins;pipeline:{devops_id}/*;excludedFromFlattening'
                               f':jenkins.branch.MultiBranchProject,hudson.matrix.MatrixProject&filter=no-folders'}
         pipe_resp = self.get_response(pipe_url, method='GET', params=pipe_reparams)

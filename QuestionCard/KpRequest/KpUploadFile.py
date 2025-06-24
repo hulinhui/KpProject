@@ -21,37 +21,39 @@ class KpUploadFile:
             raise Exception("上传类型不满足条件")
         return up_type
 
-    def get_exam_data(self, org_id):
+    def get_exam_data(self, org_id, other):
         """
         生成上传文件所需参数
+        :param other: 查询考试的其他参数
         :param org_id: 机构id
         :return: 上传接口参数
         """
         # 调用考试模块对象(传参为登录模块对象)
         KpExam = LazyModule('QuestionCard.KpRequest.KpExam')
         exam, upload_data = KpExam.KpExam(self.login), None
-        exam_id = exam.search_exam(org_id)
+        exam_id = exam.search_exam(org_id, other)
         if not exam_id: return upload_data
         if self.upload_type in ['stu', 'tea', 'score', 'lin_tea']:
             data = exam.search_paper(exam_id, org_id)
-            upload_data = data.update(
-                {'absent': 0, 'override': 'false', 'entrance': 1}) if self.upload_type == 'score' else data
+            upload_data = {'absent': 0, 'override': 'false', 'entrance': 1,
+                           **data} if self.upload_type == 'score' else data
         if self.upload_type == 'lin_stu':
             upload_data = exam.exam_detail_query(exam_id)
             CreateTempStu = LazyModule('QuestionCard.KpRequest.CreateTempStu')
             CreateTempStu.GenerateExcelStu().run('3+1+2')
         return upload_data
 
-    def get_upload_info(self, org_id):
+    def get_upload_info(self, org_id, other):
         """
         获取上传所需数据
         :param org_id    机构id
+        :param other:    考试其他参数
         :return: tuple  上传url、上传data、上传文件路径
         """
         # 获取配置信息数据
         data, folder_path = self.login.kp_data, get_file_path('excel')
         # 考试模块获取exam_id及paper_id
-        upload_data = self.get_exam_data(org_id)
+        upload_data = self.get_exam_data(org_id, other)
         upload_item = {
             'stu': (data['upload_stu_url'], upload_data, get_file_path('参考学生导入模板.xlsx', folder_path)),
             'lin_stu': (data['upload_stu_lin_url'], upload_data, get_file_path('临时考生上报模版.xlsx', folder_path)),
@@ -91,9 +93,9 @@ class KpUploadFile:
         :return:
         """
         # 登录
-        org_id = self.login.get_login_token()
+        org_id, *other = self.login.get_login_token(keys=['userId', 'orgType'])
         # 获取上传接口所需data
-        upload_tuple = self.get_upload_info(org_id)
+        upload_tuple = self.get_upload_info(org_id, other)
         # 判断考试相关参数是否有效
         if upload_tuple[1] is None:
             self.logger.warning('考试信息获取失败！')
@@ -103,5 +105,5 @@ class KpUploadFile:
 
 
 if __name__ == '__main__':
-    uf = KpUploadFile(up_type='lin_stu')
+    uf = KpUploadFile(up_type='lin_tea')
     uf.run()
