@@ -56,13 +56,13 @@ class KpExam:
         # 提取并排序角色代码，取第一个角色
         exam_user_role, exam_role = self.get_sort_roles(role_data), self.search_exam_role()
         # 判断是否信息管理员或考试管理员
-        isOrgManager = True if exam_user_role == 'ROLE_ORG_MANAGER' else False
-        isExamManager = True if exam_user_role == 'ROLE_EXAM_MANAGER' else False
+        is_Manager = True if exam_user_role == 'ROLE_ORG_MANAGER' else False
+        is_SubAdmin = True if exam_user_role == 'ROLE_EXAM_MANAGER' else False
         # 判断是否使用考试名称查询
         exam_name = self.data['exam_name'] if exam_flag else ''
         return {"examStatus": 0, "userId": org_info[1], "roleCodes": [exam_user_role], "orgType": org_info[2],
                 "orgId": org_info[0], "examName": exam_name, "pageSize": 999, "pageNum": 1, "isCollegeManager": False,
-                "isExamManager": isOrgManager, "isOrgManager": isExamManager, **exam_role}
+                "isExamManager": is_SubAdmin, "isOrgManager": is_Manager, **exam_role}
 
     def search_exam(self, user_info):
         """
@@ -420,4 +420,4 @@ if __name__ == '__main__':
 
     kp_login = KpLogin()
     ke = KpExam(kp_login)
-    ke.run2()
+    ke.run()
