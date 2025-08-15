@@ -443,14 +443,12 @@ class Consumer(Thread):
         while not self.stop_event.is_set():
             try:
                 tea_task = self.t_queue.get(timeout=5)  # 增加超时时间到5秒
-                if tea_task is None:  # 检查是否收到停止信号
-                    break
+                if tea_task is None: break  # 检查是否收到停止信号
                 tea_name, *login_info, self.headers, self.domain = tea_task
                 exam_data = self.exam_paper_info(login_info)
                 volume_info = self.get_volume_info(volume_type=1)
                 item = self.get_general_task(tea_name, exam_data, volume_info)
-                if not (item and item.get('div_alias')):
-                    continue
+                if not (item and item.get('div_alias')):continue
                 self.submit_preload_score(tea_name, item, volume_info)
             except queue.Empty:
                 if self.t_queue.empty():  # 如果队列为空，检查是否应该退出
@@ -462,7 +460,7 @@ class Consumer(Thread):
 
 
 def main():
-    user_account_list = [('15244662278', 'kp147258', '胡林辉一校'), ('19610002002', 'kp147258', '胡林辉一校')]
+    user_account_list = [('15244662278', 'kp147258', '胡林辉一校'), ('17855223366', 'kp147258', '胡林辉一校')]
     mob_queue = queue.Queue()
     tea_queue = queue.Queue()
 
