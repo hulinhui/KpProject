@@ -28,6 +28,11 @@ class KpExam:
 
     @staticmethod
     def get_sort_roles(role_data):
+        """
+        角色权限按指定顺序排序
+        :param role_data: 用户角色权限数据
+        :return: 返回排序后的第一个角色权限
+        """
         role_priority = {
             'ROLE_ORG_MANAGER': 1,
             'ROLE_EXAM_MANAGER': 2,
@@ -415,4 +420,4 @@ if __name__ == '__main__':
 
     kp_login = KpLogin()
     ke = KpExam(kp_login)
-    ke.run()
+    ke.run2()

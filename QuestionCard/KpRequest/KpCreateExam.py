@@ -15,14 +15,33 @@ class KpCreateExam:
         self.data = self.login_object.kp_data
         self.logger = self.login_object.logger
 
+    @staticmethod
+    def get_sort_roles(role_data):
+        """
+        角色权限按指定顺序排序
+        :param role_data: 用户角色权限数据
+        :return: 返回排序后的第一个角色权限
+        """
+        role_priority = {
+            'ROLE_ORG_MANAGER': 1,
+            'ROLE_EXAM_MANAGER': 2,
+            'ROLE_GRADE_LEADER': 3,
+            'ROLE_SUBJECT_LEADER': 4,
+            'ROLE_GRADE_SUBJECT_LEADER': 5,
+            'ROLE_TEACHER': 6
+        }
+        sorted_roles = sorted([role['roleCode'] for role in role_data], key=lambda x: role_priority.get(x, 999))
+        return sorted_roles[:1]
+
     def create_org_data(self):
         """
         生成考试所需的机构信息
         :return: org_item 机构信息item
         """
-        key_list = ['orgType', 'orgNo', 'orgName', 'mobile', 'userId', 'name', 'orgLevel']
+        key_list = ['orgType', 'orgNo', 'orgName', 'mobile', 'userId', 'name', 'roleList', 'orgLevel']
         value_names = self.login_object.get_login_token(key_list)
-        key_names = ['orgId'] + key_list[:-1] + ['examLevel']
+        value_names[-2] = self.get_sort_roles(value_names[-2])
+        key_names = ['orgId'] + key_list[:-2] + ['roleCodes', 'examLevel']
         org_item = dict(zip(key_names, value_names))
         return org_item
 
