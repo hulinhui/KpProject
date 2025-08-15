@@ -22,7 +22,7 @@ class GenerateExcelTeacher:
 
     def is_education_office(self):
         """判断是否为教育局"""
-        return self._stuobj.other[1] == 1
+        return self._stuobj.org_info[2] == 1
 
     def get_organization_data(self):
         """获取学校列表orgid"""
@@ -49,9 +49,9 @@ class GenerateExcelTeacher:
         查询配置文件中考试对应的所有科目数据，并返回所有科目名称组成的列表
         :return: 科目名称组成的列表
         """
-        exam_id = self.examobj.search_exam(self._stuobj.org_id, self._stuobj.other)
-        if exam_id is None: return []
-        exam_data = self.examobj.exam_detail(exam_id)
+        exam_info = self.examobj.search_exam(self._stuobj.org_info)
+        if exam_info is None: return []
+        exam_data = self.examobj.exam_detail(*exam_info)
         if not exam_data: return []
         return [_['paperName'] for _ in exam_data['papers'] if not _['inputRecord']]
 

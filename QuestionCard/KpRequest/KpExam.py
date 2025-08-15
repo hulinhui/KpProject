@@ -13,38 +13,82 @@ class KpExam:
         self.data = self.login_object.kp_data
         self.logger = self.login_object.logger
 
-    def search_exam(self, orgid, other):
+    def search_exam_role(self):
+        """
+       获取考试角色权限
+       :return: 考试详细信息字典
+       """
+        role_url = self.data['exam_role_url']
+        role_response = self.login_object.get_response(role_url)
+        result, r_data = self.login_object.check_response(role_response)
+        if result:
+            return r_data.get("data", {})
+        else:
+            self.logger.info('获取响应失败!')
+
+    @staticmethod
+    def get_sort_roles(role_data):
+        role_priority = {
+            'ROLE_ORG_MANAGER': 1,
+            'ROLE_EXAM_MANAGER': 2,
+            'ROLE_GRADE_LEADER': 3,
+            'ROLE_SUBJECT_LEADER': 4,
+            'ROLE_GRADE_SUBJECT_LEADER': 5,
+            'ROLE_TEACHER': 6
+        }
+        sorted_roles = sorted([role['roleCode'] for role in role_data], key=lambda x: role_priority.get(x, 999))
+        return sorted_roles[0]
+
+    def generate_exam_params(self, user_info, exam_flag=True):
+        """
+        获取考试查询参数
+        :param user_info: 用户信息
+        :param exam_flag: 考试查询标记，是否使用考试名称查询，默认按考试名称查询
+        :return:
+        """
+        # 拆分用户信息及用户权限
+        *org_info, role_data = user_info
+        # 提取并排序角色代码，取第一个角色
+        exam_user_role, exam_role = self.get_sort_roles(role_data), self.search_exam_role()
+        # 判断是否信息管理员或考试管理员
+        isOrgManager = True if exam_user_role == 'ROLE_ORG_MANAGER' else False
+        isExamManager = True if exam_user_role == 'ROLE_EXAM_MANAGER' else False
+        # 判断是否使用考试名称查询
+        exam_name = self.data['exam_name'] if exam_flag else ''
+        return {"examStatus": 0, "userId": org_info[1], "roleCodes": [exam_user_role], "orgType": org_info[2],
+                "orgId": org_info[0], "examName": exam_name, "pageSize": 999, "pageNum": 1, "isCollegeManager": False,
+                "isExamManager": isOrgManager, "isOrgManager": isExamManager, **exam_role}
+
+    def search_exam(self, user_info):
         """
         进行中考试列表查询考试id
-        :param orgid: 机构id
-        :param other: 其他数据
+        :param user_info: 用户数据
         :return: str 考试id
-        self.data['exam_name']
         """
-        exam_url = self.data['exam_url']
-        exam_data = {"examStatus": 0, "userId": other[0], "roleCodes": ["ROLE_ORG_MANAGER", "ROLE_TEACHER"],
-                     "orgType": other[1], "orgId": orgid, "examName": self.data['exam_name'],
-                     "pageSize": 999, "pageNum": 1, "isCollegeManager": 'false', "isExamManager": 'false',
-                     "isOrgManager": 'true', "isPaperLeader": 'true', "isPaperScanner": 'true'}
+        exam_url, exam_data = self.data['exam_url'], self.generate_exam_params(user_info)
         exam_response = self.login_object.get_response(url=exam_url, method='POST', data=exam_data)
         result, r_data = self.login_object.check_response(exam_response)
         if result:
             data = r_data.get("data")
+            # role_data = [i['examId'] for i in data['list'] if i['examGrade'] == 11]
+            # print(role_data)
+            # data_count = len([i for i in data['list'] if i['examGrade'] == 11])
+            # print(data_count)
             exam_id = data and data['list'][0]['examId'] or None
-            return exam_id
+            return exam_id, exam_data['orgId'], exam_data['roleCodes']
         else:
             self.logger.info('获取响应失败!')
 
-    def search_paper(self, exam_id, org_id):
+    def search_paper(self, exam_id, org_id, role_code):
         """
         查询科目对应paper信息
         :param exam_id: 考试id
         :param org_id: 机构id
+        :param role_code: 权限代码
         :return: 包含考试exam及科目paper的字典
         """
         paper_url = self.data['paper_url']
-        paper_data = {"data": {"examId": exam_id, "orgId": org_id,
-                               "roleCodes": ["ROLE_ORG_MANAGER", "ROLE_TEACHER", "ROLE_CLASS_TEACHER"]}}
+        paper_data = {"data": {"examId": exam_id, "orgId": org_id, "roleCodes": role_code}}
         paper_response = self.login_object.get_response(url=paper_url, method='POST', data=paper_data)
         result, r_data = self.login_object.check_response(paper_response)
         if result:
@@ -56,14 +100,16 @@ class KpExam:
         else:
             self.logger.info('获取响应失败!')
 
-    def exam_detail(self, exam_id):
+    def exam_detail(self, exam_id, _, role_code):
         """
         获取考试详情信息
+        :param _: 无效参数
         :param exam_id: 考试id
+        :param role_code: 权限代码
         :return: 考试详细信息字典
         """
         detail_url = self.data['exam_detail_url']
-        detail_params = {'examId': exam_id, 'findType': 2, 'findState': 0}
+        detail_params = {'examId': exam_id, 'findType': 2, 'roleCodes': role_code}
         detail_response = self.login_object.get_response(url=detail_url, method='GET', params=detail_params)
         result, r_data = self.login_object.check_response(detail_response)
         if result:
@@ -71,12 +117,11 @@ class KpExam:
         else:
             self.logger.info('获取响应失败!')
 
-    def exam_detail_query(self, exam_id):
-        exam_data = self.exam_detail(exam_id)
-        grade_id = exam_data.get('gradeId')
-        exam_type = exam_data.get('examModel')
+    def exam_detail_query(self, exam_info):
+        exam_data = self.exam_detail(*exam_info)
+        grade_id, exam_type = exam_data.get('gradeId'), exam_data.get('examModel')
         school_ids = ','.join([item['schoolId'] for item in exam_data['papers'][0]['schoolList']])
-        return {'examId': exam_id, 'gradeId': grade_id, 'schoolIds': school_ids, 'modelType': exam_type}
+        return {'examId': exam_info[0], 'gradeId': grade_id, 'schoolIds': school_ids, 'modelType': exam_type}
 
     def exam_remark(self, remark_data):
         """
@@ -338,11 +383,11 @@ class KpExam:
 
     @config_reminder_decorator(content='管理员登录账号和考试名称及科目')
     def run(self):
-        org_id, *other = self.login_object.get_login_token(keys=['userId', 'orgType'])
-        exam_info = self.search_paper(examId, org_id) if (examId := self.search_exam(org_id, other)) else None
+        user_info = self.login_object.get_login_token(keys=['userId', 'orgType', 'roleList'])
+        exam_info = self.search_paper(*examInfo) if (examInfo := self.search_exam(user_info)) else None
         if exam_info is not None:
             # 全卷恢复或暂停
-            # self.exam_marking(exam_info, 1)
+            self.exam_marking(exam_info, 1)
             # 题组重评
             # divId = self.exam_questionlist(exam_info, '11')
             # self.exam_divremark(exam_info, divId)
@@ -354,8 +399,8 @@ class KpExam:
             self.logger.info('考试信息数据获取有误!')
 
     def run2(self):
-        org_id, *other = self.login_object.get_login_token(keys=['userId','orgType'])
-        exam_info = self.search_paper(examId, org_id) if (examId := self.search_exam(org_id, other)) else None
+        user_info = self.login_object.get_login_token(keys=['userId', 'orgType', 'roleList'])
+        exam_info = self.search_paper(*examInfo) if (examInfo := self.search_exam(user_info)) else None
         if exam_info is not None:
             kgomr_data = self.get_kgomr_scheme(exam_info)
             kgcard_list = self.generate_kgcard_data(kgomr_data)

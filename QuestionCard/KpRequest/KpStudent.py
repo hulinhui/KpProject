@@ -4,7 +4,8 @@ import random
 class KpStudent:
     def __init__(self, login_object, ids_run=True):
         self.object = login_object
-        self.org_id, *self.other = self.object.get_login_token(keys=['userId', 'orgType'])
+        self.org_info = self.object.get_login_token(keys=['userId', 'orgType', 'roleList'])
+        self.org_id, *_ = self.org_info
         self.ids_info = self.query_class_info() if ids_run else None
 
     def get_school_area(self):

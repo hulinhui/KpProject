@@ -321,4 +321,4 @@ if __name__ == '__main__':
 
     kp_login = KpLogin()
     kce = KpCreateExam(kp_login)
-    kce.run_delete()
+    kce.run_create()
